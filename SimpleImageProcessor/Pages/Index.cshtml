@@ -1,0 +1,54 @@
+﻿@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Home page";
+}
+<script>
+    function submitAttachments() {
+        $('#uploadForm').submit();
+        $('#fileUploadStatus').text('Se încarcă fișierele...');
+    }
+
+    function resize() {
+        $('#images').each(function (_, post) {
+            var maxWidth = $('#images').width() - 20;
+            var maxHeight = $(window).innerHeight() - $('#topBanner').outerHeight() - 40;
+            $(post).find('img').each(function (_, img) {
+                var originalWidth = img.naturalWidth,
+                    originalHeight = img.naturalHeight,
+                    ratio = Math.min(maxHeight / originalHeight, maxWidth / originalWidth);
+                if (ratio < 1) {
+                    $(img).css({ 'width': Math.round(originalWidth * ratio) + 'px', 'height': Math.round(originalHeight * ratio) + 'px' });
+                }
+            });
+        });
+    }
+</script>
+
+<h2>Procesor imagini</h2>
+<br />
+<h3>Ascunde numere de înmatriculare și redimensionează imaginile de peste 2MB</h3>
+<br />
+Încarcă fișierele, ele vor fi apoi procesate, iar la final vor fi afișate în pagină. Alege să le salvezi pe fiecare în parte din meniul click dreapta 🡒 salvează imaginea...<br />
+Această unealtă este un soft experimental și poate returna rezultate neașteptate sau greșite. Te rugăm să verifici cu atenție rezultatul înainte să îl folosești.<br />
+<span style="font-size:0.8em; font-style:italic">Acest soft este pus la dispoziția publicului ca atare, fără garanții, și poate fi folosit în mod liber și gratuit. Echipa Metrou Ușor nu își asumă responsabilitatea pentru posibilele daune cauzate de folosirea acestui soft.</span>
+<p>&nbsp;</p>
+<form method="post" id="uploadForm" enctype="multipart/form-data">
+    <input asp-for="Files" onchange="submitAttachments()" multiple />
+    <div style="font-size:0.8em; font-style:italic">Minim 1, maxim 10 fișiere.</div>
+    <div id="fileUploadStatus"></div>
+    <span style="color:darkred; font-weight:bold;" asp-validation-for="Files"></span>
+</form>
+<p>&nbsp;</p>
+<div style="width:100%" id="images">
+    @foreach (var file in Model.ProcessedFiles)
+    {
+        <img src="data:@file.mimeType;base64, @file.contents" alt="Imaginea nu a putut fi afișată" />
+        <p>&nbsp;</p>
+    }
+</div>
+
+<script>
+    resize();
+</script>
+

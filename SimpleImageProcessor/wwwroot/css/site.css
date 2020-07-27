@@ -1,0 +1,151 @@
+﻿@font-face {
+    font-family: Ubuntu;
+    src: url('../fonts/Ubuntu-Regular.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: Ubuntu;
+    src: url('../fonts/Ubuntu-Bold.ttf') format('truetype');
+    font-weight: bold;
+}
+
+@font-face {
+    font-family: Ubuntu;
+    src: url('../fonts/Ubuntu-Italic.ttf') format('truetype');
+    font-style: italic;
+}
+
+@font-face {
+    font-family: Ubuntu;
+    src: url('../fonts/Ubuntu-BoldItalic.ttf') format('truetype');
+    font-weight: bold;
+    font-style: italic;
+}
+
+@font-face {
+    font-family: UbuntuMono;
+    src: url('../fonts/UbuntuMono-Regular.ttf') format('truetype');
+}
+
+@font-face {
+    font-family: UbuntuMono;
+    src: url('../fonts/UbuntuMono-Bold.ttf') format('truetype');
+    font-weight: bold;
+}
+
+@font-face {
+    font-family: UbuntuMono;
+    src: url('../fonts/UbuntuMono-Italic.ttf') format('truetype');
+    font-style: italic;
+}
+
+@font-face {
+    font-family: UbuntuMono;
+    src: url('../fonts/UbuntuMono-BoldItalic.ttf') format('truetype');
+    font-weight: bold;
+    font-style: italic;
+}
+
+body {
+    background-image: url('../images/bg.gif');
+    background-repeat: repeat;
+    background-attachment: fixed;
+    font-family: Ubuntu;
+    font-size: 1.5em;
+}
+
+.Menu {
+    z-index: 999999999;
+}
+
+    .Menu ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        background: #445664;
+        z-index: 999999999;
+        width: max-content;
+    }
+
+        .Menu ul li {
+            display: block;
+            position: relative;
+            float: left;
+            background: #445664;
+            z-index: 999999999;
+        }
+
+    .Menu li ul {
+        display: none;
+    }
+
+    .Menu ul li a {
+        display: block;
+        padding: 1em;
+        text-decoration: none;
+        white-space: nowrap;
+        color: #fff;
+        white-space: normal !important;
+    }
+
+        .Menu ul li a:hover {
+            background: #495d6c;
+        }
+
+    .Menu li:hover > ul {
+        display: block;
+        position: absolute;
+    }
+
+    .Menu li:hover li {
+        float: none;
+    }
+
+    .Menu li:hover a {
+        background: #495d6c;
+    }
+
+    .Menu li:hover li a:hover {
+        background: #445664;
+    }
+
+    .Menu .main-navigation li ul li {
+        border-top: 0;
+    }
+
+    .Menu ul ul ul {
+        left: 100%;
+        top: 0;
+    }
+
+    .Menu ul:before,
+    .Menu ul:after {
+        content: " "; /* 1 */
+        display: table; /* 2 */
+    }
+
+ul:after {
+    clear: both;
+}
+
+.Buttons {
+    display: inline-block;
+}
+
+.CollapsedButtons {
+    display: none;
+}
+
+@media (max-width: 620px) {
+    .Buttons {
+        display: none;
+    }
+
+    .CollapsedButtons {
+        display: inline-block;
+    }
+
+    .Menu ul {
+        max-width: 200px;
+    }
+}
