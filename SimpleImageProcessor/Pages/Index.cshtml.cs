@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Caching.Distributed;
 using openalprnet;
 using Serilog;
 using System;
@@ -10,32 +11,37 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace SimpleImageProcessor.Pages
 {
     public class IndexModel : PageModel
     {
-        const int TWO_MB = 2 * 1024 * 1024;
+        const int _2MB = 2 * 1024 * 1024;
 
         private readonly ILogger _logger;
+        private readonly IDistributedCache _cache;
 
         [BindProperty]
         public IEnumerable<IFormFile> Files { get; set; }
 
-        public List<(string mimeType, string contents)> ProcessedFiles { get; set; }
+        public Guid SessionId { get; set; }
 
-        public IndexModel(ILogger logger)
+        public int Count { get; set; }
+
+        public IndexModel(ILogger logger, IDistributedCache cache)
         {
             _logger = logger;
-            ProcessedFiles = new List<(string, string)>();
+            _cache = cache;
+            Count = 0;
         }
 
         public void OnGet()
         {
-
+            
         }
 
-        public void OnPost()
+        public async Task OnPost()
         {
             if ((Files?.Count() ?? 0) > 10)
             {
@@ -45,6 +51,8 @@ namespace SimpleImageProcessor.Pages
 
             try
             {
+                SessionId = Guid.NewGuid();
+                var processedImages = new List<ProcessedImage>();
                 foreach (var file in Files)
                 {
                     using var alpr = new AlprNet("eu", "openalpr.conf", "RuntimeData");
@@ -65,9 +73,9 @@ namespace SimpleImageProcessor.Pages
                         graphics.FillPolygon(myBrush, result.PlatePoints.ToArray());
                     }
 
-                    if (file.Length > TWO_MB)
+                    if (file.Length > _2MB)
                     {
-                        var scale = (float)TWO_MB / file.Length;
+                        var scale = (float)_2MB / file.Length;
                         var scaleWidth = (int)(bitmap.Width * scale);
                         var scaleHeight = (int)(bitmap.Height * scale);
                         using var bmp = new Bitmap(scaleWidth, scaleHeight);
@@ -77,11 +85,11 @@ namespace SimpleImageProcessor.Pages
                         graph.SmoothingMode = SmoothingMode.AntiAlias;
                         graph.FillRectangle(new SolidBrush(Color.Black), new RectangleF(0, 0, scaleWidth, scaleHeight));
                         graph.DrawImage(bitmap, 0, 0, scaleWidth, scaleHeight);
-                        SaveBitmap(bmp, file.FileName, file.ContentType);
+                        await SaveBitmap(bmp, file.FileName, file.ContentType);
                     }
                     else
                     {
-                        SaveBitmap(bitmap, file.FileName, file.ContentType);
+                        await SaveBitmap(bitmap, file.FileName, file.ContentType);
                     }
                 }
             }
@@ -92,7 +100,7 @@ namespace SimpleImageProcessor.Pages
             }
         }
 
-        private void SaveBitmap(Bitmap bitmap, string fileName, string contentType)
+        private async Task SaveBitmap(Bitmap bitmap, string fileName, string contentType)
         {
             var extension = Path.GetExtension(fileName);
             var exception = new ArgumentException($"Unable to determine file extension for fileName: {fileName}", nameof(fileName));
@@ -134,7 +142,10 @@ namespace SimpleImageProcessor.Pages
 
             using var output = new MemoryStream();
             bitmap.Save(output, imageFormat);
-            ProcessedFiles.Add((contentType, Convert.ToBase64String(output.ToArray())));
+            var options = new DistributedCacheEntryOptions { SlidingExpiration = TimeSpan.FromHours(3) };
+            await _cache.SetAsync($"{SessionId}_file_{Count}", output.GetBuffer(), options);
+            await _cache.SetStringAsync($"{SessionId}_contentType_{Count}", contentType, options);
+            await _cache.SetStringAsync($"{SessionId}_fileName_{Count++}", fileName, options);
         }
     }
 }
