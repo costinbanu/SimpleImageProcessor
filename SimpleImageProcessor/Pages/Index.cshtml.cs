@@ -17,7 +17,7 @@ namespace SimpleImageProcessor.Pages
 {
     public class IndexModel : PageModel
     {
-        const int _2MB = 2 * 1024 * 1024;
+        const double _2MB = 2 * 1024 * 1024;
 
         private readonly ILogger _logger;
         private readonly IDistributedCache _cache;
@@ -49,6 +49,13 @@ namespace SimpleImageProcessor.Pages
                 return;
             }
 
+            var badFiles = Files.Where(f => !f.ContentType.StartsWith("image"));
+            if (badFiles.Any())
+            {
+                ModelState.AddModelError(nameof(Files), $"Următoarele fișiere nu sunt valide: {string.Join(',', badFiles.Select(f => f.FileName))}");
+                return;
+            }
+
             try
             {
                 SessionId = Guid.NewGuid();
@@ -75,7 +82,7 @@ namespace SimpleImageProcessor.Pages
 
                     if (file.Length > _2MB)
                     {
-                        var scale = (float)_2MB / file.Length;
+                        var scale = Math.Sqrt(_2MB / file.Length);
                         var scaleWidth = (int)(bitmap.Width * scale);
                         var scaleHeight = (int)(bitmap.Height * scale);
                         using var bmp = new Bitmap(scaleWidth, scaleHeight);
