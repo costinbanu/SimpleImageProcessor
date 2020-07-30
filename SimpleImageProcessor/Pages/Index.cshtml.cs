@@ -38,7 +38,7 @@ namespace SimpleImageProcessor.Pages
 
         public void OnGet()
         {
-            
+
         }
 
         public async Task OnPost()
@@ -56,49 +56,60 @@ namespace SimpleImageProcessor.Pages
                 return;
             }
 
+            SessionId = Guid.NewGuid();
+            var tasks = Files.Select(async file =>
+            {
+                using var alpr = new AlprNet("eu", "openalpr.conf", "RuntimeData");
+                if (!alpr.IsLoaded())
+                {
+                    ModelState.AddModelError(nameof(Files), "A intervenit o eroare, te rugăm să încerci mai târziu.");
+                    return;
+                }
+
+                using var input = new MemoryStream();
+                file.OpenReadStream().CopyTo(input);
+
+                using var bitmap = new Bitmap(input);
+                NormalizeOrientation(bitmap);
+                using var ms = new MemoryStream();
+                bitmap.Save(ms, ImageFormat.Jpeg);
+
+                input.Seek(0, SeekOrigin.Begin);
+                var results = alpr.Recognize(input.ToArray());
+                foreach (var result in results.Plates)
+                {
+                    using var graphics = Graphics.FromImage(bitmap);
+                    using var myBrush = new SolidBrush(Color.WhiteSmoke);
+                    graphics.FillPolygon(myBrush, result.PlatePoints.ToArray());
+                }
+
+                if (file.Length > _2MB)
+                {
+                    var scale = Math.Sqrt(_2MB / file.Length);
+                    var scaleWidth = (int)(bitmap.Width * scale);
+                    var scaleHeight = (int)(bitmap.Height * scale);
+                    using var bmp = new Bitmap(scaleWidth, scaleHeight);
+                    using var graph = Graphics.FromImage(bmp);
+                    graph.InterpolationMode = InterpolationMode.High;
+                    graph.CompositingQuality = CompositingQuality.HighQuality;
+                    graph.SmoothingMode = SmoothingMode.AntiAlias;
+                    graph.FillRectangle(new SolidBrush(Color.Black), new RectangleF(0, 0, scaleWidth, scaleHeight));
+                    graph.DrawImage(bitmap, 0, 0, scaleWidth, scaleHeight);
+                    foreach (var id in bitmap.PropertyIdList)
+                    {
+                        bmp.SetPropertyItem(bitmap.GetPropertyItem(id));
+                    }
+                    await SaveBitmap(bmp, file.FileName, file.ContentType);
+                }
+                else
+                {
+                    await SaveBitmap(bitmap, file.FileName, file.ContentType);
+                }
+            }); 
+            
             try
             {
-                SessionId = Guid.NewGuid();
-                var processedImages = new List<ProcessedImage>();
-                foreach (var file in Files)
-                {
-                    using var alpr = new AlprNet("eu", "openalpr.conf", "RuntimeData");
-                    if (!alpr.IsLoaded())
-                    {
-                        ModelState.AddModelError(nameof(Files), "A intervenit o eroare, te rugăm să încerci mai târziu.");
-                        return;
-                    }
-
-                    using var input = new MemoryStream();
-                    file.OpenReadStream().CopyTo(input);
-                    using var bitmap = new Bitmap(input);
-                    var results = alpr.Recognize(input.ToArray());
-                    foreach (var result in results.Plates)
-                    {
-                        using var graphics = Graphics.FromImage(bitmap);
-                        using var myBrush = new SolidBrush(Color.WhiteSmoke);
-                        graphics.FillPolygon(myBrush, result.PlatePoints.ToArray());
-                    }
-
-                    if (file.Length > _2MB)
-                    {
-                        var scale = Math.Sqrt(_2MB / file.Length);
-                        var scaleWidth = (int)(bitmap.Width * scale);
-                        var scaleHeight = (int)(bitmap.Height * scale);
-                        using var bmp = new Bitmap(scaleWidth, scaleHeight);
-                        using var graph = Graphics.FromImage(bmp);
-                        graph.InterpolationMode = InterpolationMode.High;
-                        graph.CompositingQuality = CompositingQuality.HighQuality;
-                        graph.SmoothingMode = SmoothingMode.AntiAlias;
-                        graph.FillRectangle(new SolidBrush(Color.Black), new RectangleF(0, 0, scaleWidth, scaleHeight));
-                        graph.DrawImage(bitmap, 0, 0, scaleWidth, scaleHeight);
-                        await SaveBitmap(bmp, file.FileName, file.ContentType);
-                    }
-                    else
-                    {
-                        await SaveBitmap(bitmap, file.FileName, file.ContentType);
-                    }
-                }
+                await Task.WhenAll(tasks);
             }
             catch (Exception ex)
             {
@@ -153,6 +164,42 @@ namespace SimpleImageProcessor.Pages
             await _cache.SetAsync($"{SessionId}_file_{Count}", output.GetBuffer(), options);
             await _cache.SetStringAsync($"{SessionId}_contentType_{Count}", contentType, options);
             await _cache.SetStringAsync($"{SessionId}_fileName_{Count++}", fileName, options);
+        }
+
+        void NormalizeOrientation(Bitmap img)
+        {
+            if (Array.IndexOf(img.PropertyIdList, 274) > -1)
+            {
+                var orientation = (int)img.GetPropertyItem(274).Value[0];
+                switch (orientation)
+                {
+                    case 1:
+                        // No rotation required.
+                        break;
+                    case 2:
+                        img.RotateFlip(RotateFlipType.RotateNoneFlipX);
+                        break;
+                    case 3:
+                        img.RotateFlip(RotateFlipType.Rotate180FlipNone);
+                        break;
+                    case 4:
+                        img.RotateFlip(RotateFlipType.Rotate180FlipX);
+                        break;
+                    case 5:
+                        img.RotateFlip(RotateFlipType.Rotate90FlipX);
+                        break;
+                    case 6:
+                        img.RotateFlip(RotateFlipType.Rotate90FlipNone);
+                        break;
+                    case 7:
+                        img.RotateFlip(RotateFlipType.Rotate270FlipX);
+                        break;
+                    case 8:
+                        img.RotateFlip(RotateFlipType.Rotate270FlipNone);
+                        break;
+                }
+                img.RemovePropertyItem(274);
+            }
         }
     }
 }
