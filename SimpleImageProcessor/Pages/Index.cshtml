@@ -4,11 +4,6 @@
     ViewData["Title"] = "Home page";
 }
 <script>
-    function submitAttachments() {
-        $('#uploadForm').submit();
-        $('#fileUploadStatus').text('Se încarcă fișierele...');
-    }
-
     var maxWidth, maxHeight;
 
     function resizeImage(img) {
@@ -38,10 +33,19 @@
 </p>
 <p>&nbsp;</p>
 <form method="post" id="uploadForm" enctype="multipart/form-data">
-    <input asp-for="Files" onchange="submitAttachments()" multiple />
+    <input asp-for="Files" multiple />
     <div class="caption">Minim 1, maxim 10 fișiere.</div>
     <div id="fileUploadStatus"></div>
     <span style="color:red" asp-validation-for="Files"></span>
+    <p></p>
+    <select name="hidePlates">
+        <option selected disabled>Alege tipul procesării...</option>
+        <option value="true">Redimensionează și ascunde numerele de înmatriculare</option>
+        <option value="false">Doar redimensionează</option>
+    </select> <br />
+    <span style="color:red" asp-validation-for="HidePlates"></span>
+    <p></p>
+    <input type="submit" value="Trimite" />
 </form>
 <p>&nbsp;</p>
 <div style="width:100%" id="images">

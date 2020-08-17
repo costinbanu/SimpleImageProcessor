@@ -25,6 +25,9 @@ namespace SimpleImageProcessor.Pages
         [BindProperty]
         public IEnumerable<IFormFile> Files { get; set; }
 
+        [BindProperty]
+        public bool? HidePlates { get; set; }
+
         public Guid SessionId { get; set; }
 
         public int Count { get; set; }
@@ -43,44 +46,60 @@ namespace SimpleImageProcessor.Pages
 
         public async Task OnPost()
         {
-            if ((Files?.Count() ?? 0) > 10)
+            var hasErrors = false;
+
+            if ((Files?.Count() ?? 0) == 0 || (Files?.Count() ?? 0) > 10)
             {
-                ModelState.AddModelError(nameof(Files), "Maxim 10 fișiere!");
-                return;
+                ModelState.AddModelError(nameof(Files), "Minim 1, maxim 10 imagini!");
+                hasErrors = true;
             }
 
             var badFiles = Files.Where(f => !f.ContentType.StartsWith("image"));
             if (badFiles.Any())
             {
-                ModelState.AddModelError(nameof(Files), $"Următoarele fișiere nu sunt valide: {string.Join(',', badFiles.Select(f => f.FileName))}");
+                ModelState.AddModelError(nameof(Files), $"Următoarele fișiere nu sunt valide: {string.Join(',', badFiles.Select(f => f.FileName))} - toate fișierele trebuie să fie imagini.");
+                hasErrors = true;
+            }
+
+            if (HidePlates == null)
+            {
+                ModelState.AddModelError(nameof(HidePlates), "Alege un tip de procesare");
+                hasErrors = true;
+            }
+
+            if (hasErrors)
+            {
                 return;
             }
 
             SessionId = Guid.NewGuid();
             var tasks = Files.Select(async file =>
             {
-                using var alpr = new AlprNet("eu", "openalpr.conf", "RuntimeData");
-                if (!alpr.IsLoaded())
-                {
-                    ModelState.AddModelError(nameof(Files), "A intervenit o eroare, te rugăm să încerci mai târziu.");
-                    return;
-                }
-
                 using var input = new MemoryStream();
                 file.OpenReadStream().CopyTo(input);
-
                 using var bitmap = new Bitmap(input);
-                NormalizeOrientation(bitmap);
-                using var ms = new MemoryStream();
-                bitmap.Save(ms, ImageFormat.Jpeg);
-
-                input.Seek(0, SeekOrigin.Begin);
-                var results = alpr.Recognize(input.ToArray());
-                foreach (var result in results.Plates)
+                
+                if (HidePlates ?? false)
                 {
-                    using var graphics = Graphics.FromImage(bitmap);
-                    using var myBrush = new SolidBrush(Color.WhiteSmoke);
-                    graphics.FillPolygon(myBrush, result.PlatePoints.ToArray());
+                    using var alpr = new AlprNet("eu", "openalpr.conf", "RuntimeData");
+                    if (!alpr.IsLoaded())
+                    {
+                        ModelState.AddModelError(nameof(Files), "A intervenit o eroare, te rugăm să încerci mai târziu.");
+                        return;
+                    }
+
+                    NormalizeOrientation(bitmap);
+                    using var ms = new MemoryStream();
+                    bitmap.Save(ms, ImageFormat.Jpeg);
+
+                    input.Seek(0, SeekOrigin.Begin);
+                    var results = alpr.Recognize(input.ToArray());
+                    foreach (var result in results.Plates)
+                    {
+                        using var graphics = Graphics.FromImage(bitmap);
+                        using var myBrush = new SolidBrush(Color.WhiteSmoke);
+                        graphics.FillPolygon(myBrush, result.PlatePoints.ToArray());
+                    }
                 }
 
                 if (file.Length > _2MB)
