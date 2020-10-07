@@ -97,7 +97,11 @@ namespace SimpleImageProcessor.Pages
                     foreach (var result in results.Plates)
                     {
                         using var graphics = Graphics.FromImage(bitmap);
-                        using var myBrush = new SolidBrush(Color.WhiteSmoke);
+                        int x = result.PlatePoints.Min(p => p.X), y = result.PlatePoints.Max(p => p.Y), 
+                            height = Math.Abs(y - result.PlatePoints.Min(p => p.Y)), width = Math.Abs(result.PlatePoints.Max(p => p.X) - x);
+                        using var crop = bitmap.Clone(new Rectangle(x, y, width, height), bitmap.PixelFormat);
+                        using var blurred = Blur(crop, new Rectangle(0, 0, crop.Width, crop.Height), 10);
+                        using var myBrush = new TextureBrush(blurred);
                         graphics.FillPolygon(myBrush, result.PlatePoints.ToArray());
                     }
                 }
@@ -148,29 +152,29 @@ namespace SimpleImageProcessor.Pages
                 throw exception;
             }
 
-            switch (extension.ToLower())
+            switch (extension.ToLowerInvariant())
             {
-                case @".bmp":
+                case ".bmp":
                     imageFormat = ImageFormat.Bmp;
                     break;
-                case @".gif":
+                case ".gif":
                     imageFormat = ImageFormat.Gif;
                     break;
-                case @".ico":
+                case ".ico":
                     imageFormat = ImageFormat.Icon;
                     break;
-                case @".jpg":
-                case @".jpeg":
+                case ".jpg":
+                case ".jpeg":
                     imageFormat = ImageFormat.Jpeg;
                     break;
-                case @".png":
+                case ".png":
                     imageFormat = ImageFormat.Png;
                     break;
-                case @".tif":
-                case @".tiff":
+                case ".tif":
+                case ".tiff":
                     imageFormat = ImageFormat.Tiff;
                     break;
-                case @".wmf":
+                case ".wmf":
                     imageFormat = ImageFormat.Wmf;
                     break;
                 default:
@@ -185,7 +189,7 @@ namespace SimpleImageProcessor.Pages
             await _cache.SetStringAsync($"{SessionId}_fileName_{Count++}", fileName, options);
         }
 
-        void NormalizeOrientation(Bitmap img)
+        private void NormalizeOrientation(Bitmap img)
         {
             if (Array.IndexOf(img.PropertyIdList, 274) > -1)
             {
@@ -219,6 +223,62 @@ namespace SimpleImageProcessor.Pages
                 }
                 img.RemovePropertyItem(274);
             }
+        }
+
+        private unsafe static Bitmap Blur(Bitmap image, Rectangle rectangle, Int32 blurSize)
+        {
+            var blurred = new Bitmap(image.Width, image.Height);
+
+            using var graphics = Graphics.FromImage(blurred);
+            graphics.DrawImage(image, new Rectangle(0, 0, image.Width, image.Height), new Rectangle(0, 0, image.Width, image.Height), GraphicsUnit.Pixel);
+
+            var blurredData = blurred.LockBits(new Rectangle(0, 0, image.Width, image.Height), ImageLockMode.ReadWrite, blurred.PixelFormat);
+
+            int bitsPerPixel = Image.GetPixelFormatSize(blurred.PixelFormat);
+
+            var scan0 = (byte*)blurredData.Scan0.ToPointer();
+
+            for (var xx = rectangle.X; xx < rectangle.X + rectangle.Width; xx++)
+            {
+                for (var yy = rectangle.Y; yy < rectangle.Y + rectangle.Height; yy++)
+                {
+                    int avgR = 0, avgG = 0, avgB = 0;
+                    var blurPixelCount = 0;
+
+                    for (var x = xx; (x < xx + blurSize && x < image.Width); x++)
+                    {
+                        for (var y = yy; (y < yy + blurSize && y < image.Height); y++)
+                        {
+                            var data = scan0 + y * blurredData.Stride + x * bitsPerPixel / 8;
+
+                            avgB += data[0]; 
+                            avgG += data[1]; 
+                            avgR += data[2]; 
+
+                            blurPixelCount++;
+                        }
+                    }
+
+                    avgR /= blurPixelCount;
+                    avgG /= blurPixelCount;
+                    avgB /= blurPixelCount;
+
+                    for (var x = xx; x < xx + blurSize && x < image.Width && x < rectangle.Width; x++)
+                    {
+                        for (var y = yy; y < yy + blurSize && y < image.Height && y < rectangle.Height; y++)
+                        {
+                            var data = scan0 + y * blurredData.Stride + x * bitsPerPixel / 8;
+
+                            data[0] = (byte)avgB;
+                            data[1] = (byte)avgG;
+                            data[2] = (byte)avgR;
+                        }
+                    }
+                }
+            }
+
+            blurred.UnlockBits(blurredData);
+            return blurred;
         }
     }
 }
