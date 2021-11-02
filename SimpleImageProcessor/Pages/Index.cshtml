@@ -45,13 +45,26 @@
     </select> <br />
     <span style="color:red" asp-validation-for="HidePlates"></span>
     <p></p>
+    <select name="sizeLimit">
+        <option selected disabled>Alege dimensiunea minima...</option>
+        <option value="2">2MB</option>
+        <option value="3">3MB</option>
+        <option value="4">4MB</option>
+        <option value="5">5MB</option>
+    </select> <br />
+    <span style="color:red" asp-validation-for="SizeLimit"></span>
+    <p></p>
     <input type="submit" value="Trimite" />
 </form>
 <p>&nbsp;</p>
 <div style="width:100%" id="images">
-    @for (var i = 0; i < Model.Count; i++)
+    @foreach (var processedImage in Model.ProcessedImageIds ?? Enumerable.Empty<(Guid, string, string)>())
     {
-        <img src="./File?id=@i&sessionId=@Model.SessionId" onload="resizeImage(this)" />
+        <img src="./File?id=@processedImage.Id" onload="resizeImage(this)" />
+        <br />
+        <span style="font-size:0.8em">
+            Dimensiunea veche: @processedImage.OriginalSize; dimensiunea nouă: @processedImage.NewSize
+        </span>
         <p>&nbsp;</p>
     }
 </div>

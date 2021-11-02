@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using OpenALPRWrapper;
 
 namespace SimpleImageProcessor
 {
@@ -29,7 +30,9 @@ namespace SimpleImageProcessor
                 x.MultipartHeadersLengthLimit = int.MaxValue;
             });
             services.AddRazorPages().AddSessionStateTempDataProvider();
-            services.AddMemoryCache();
+            services.AddControllers();
+            services.AddLazyCache();
+            services.AddSingleton<IImageProcessor, ImageProcessor>();
         }
 
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
@@ -52,6 +55,7 @@ namespace SimpleImageProcessor
             app.UseEndpoints(endpoints =>
             {
                 endpoints.MapRazorPages();
+                endpoints.MapControllers();
             });
         }
     }
