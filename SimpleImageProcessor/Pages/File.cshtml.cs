@@ -19,6 +19,11 @@ namespace SimpleImageProcessor.Pages
         public IActionResult OnGet(Guid id)
         {
             var file = _cache.Get<ProcessingImage>(id.ToString());
+            if (file is null)
+            {
+                return NotFound();
+            }
+
             var cd = new ContentDisposition
             {
                 FileName = file.FileName,

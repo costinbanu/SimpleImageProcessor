@@ -14,6 +14,7 @@ using System.Threading.Tasks;
 
 namespace SimpleImageProcessor.Pages
 {
+    [ValidateAntiForgeryToken]
     public class IndexModel : PageModel
     {
         private readonly ILogger _logger;
@@ -81,18 +82,19 @@ namespace SimpleImageProcessor.Pages
             {
                 ProcessedImageIds = await Task.WhenAll(Files.Select(async file => 
                 {
-                    using var ms = new MemoryStream();
-                    await file.CopyToAsync(ms);
-                    var result = await _imageProcessor.ProcessImage(ms.GetBuffer(), file.FileName, HidePlates ?? false, (SizeLimit ?? 2) * Constants.OneMB);
+                    using var input = file.OpenReadStream();
+                    using var result = await _imageProcessor.ProcessImage(input, file.FileName, HidePlates ?? false, (SizeLimit ?? 2) * Constants.OneMB);
                     var imageId = Guid.NewGuid();
+                    using var ms = new MemoryStream();
+                    await result.CopyToAsync(ms);
                     var img = new ProcessingImage
                     {
-                        Contents = result,
+                        Contents = ms.GetBuffer(),
                         FileName = file.FileName,
                         MimeType = file.ContentType
                     };
                     _cache.Add(imageId.ToString(), img, TimeSpan.FromMinutes(1));
-                    return (imageId, ReadableFileSize(file.Length), ReadableFileSize(result.LongLength));
+                    return (imageId, ReadableFileSize(file.Length), ReadableFileSize(result.Length));
                 }));
             }
             catch (Exception ex)
