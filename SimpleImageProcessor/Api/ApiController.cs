@@ -1,4 +1,5 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using OpenALPRWrapper;
 using Serilog;
 using SimpleImageProcessor.Contracts;
@@ -14,17 +15,24 @@ namespace SimpleImageProcessor.Api
     {
         private readonly IImageProcessor _imageProcessor;
         private readonly ILogger _logger;
+        private readonly IConfiguration _config;
 
-        public ApiController(IImageProcessor imageProcessor, ILogger logger)
+        public ApiController(IImageProcessor imageProcessor, ILogger logger, IConfiguration config)
         {
             _imageProcessor = imageProcessor;
             _logger = logger;
+            _config = config;
         }
 
         [HttpPost]
         [Route("process-image")]
-        public async Task<IActionResult> ProcessImage([FromBody] ProcessImageRequest request)
+        public async Task<IActionResult> ProcessImage([FromForm] ProcessImageRequest request)
         {
+            if (!Request.Headers.TryGetValue("X-API-Key", out var key) || key.ToString() != _config.GetValue<string>("ApiKey"))
+            {
+                return Unauthorized();
+            }
+
             if (request is null)
             {
                 return BadRequest();
@@ -42,8 +50,8 @@ namespace SimpleImageProcessor.Api
 
             try
             {
-                var result = await _imageProcessor.ProcessImage(request.Contents, request.FileName, request.HideLicensePlates, request.SizeLimit);
-                return File(result, request.MimeType, request.FileName);
+                var result = await _imageProcessor.ProcessImage(request.File.OpenReadStream(), request.File.FileName, request.HideLicensePlates, request.SizeLimit);
+                return File(result, request.File.ContentType, request.File.FileName);
             }
             catch (Exception ex)
             {

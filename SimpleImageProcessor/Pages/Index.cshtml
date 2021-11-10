@@ -55,6 +55,7 @@
     <span style="color:red" asp-validation-for="SizeLimit"></span>
     <p></p>
     <input type="submit" value="Trimite" />
+    @Html.AntiForgeryToken()
 </form>
 <p>&nbsp;</p>
 <div style="width:100%" id="images">

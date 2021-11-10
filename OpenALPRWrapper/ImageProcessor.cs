@@ -14,18 +14,17 @@ namespace OpenALPRWrapper
 {
     public interface IImageProcessor
     {
-        Task<byte[]> ProcessImage(byte[] file, string fileName, bool hideLicensePlates, long? sizeLimit);
+        Task<Stream> ProcessImage(Stream input, string fileName, bool hideLicensePlates, long? sizeLimit);
     }
 
     public class ImageProcessor : IImageProcessor
     {
         private static readonly string _workingDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 
-        async Task<byte[]> IImageProcessor.ProcessImage(byte[] file, string fileName, bool hideLicensePlates, long? sizeLimit)
+        async Task<Stream> IImageProcessor.ProcessImage(Stream input, string fileName, bool hideLicensePlates, long? sizeLimit)
         {
-            using var input = new MemoryStream(file);
             using var bitmap = new Bitmap(input);
-            double originalSize = file.Length;
+            double originalSize = input.Length;
 
             if (hideLicensePlates)
             {
@@ -45,7 +44,7 @@ namespace OpenALPRWrapper
                     graphics.FillPolygon(myBrush, result.Coordinates.Select(r => new Point(r.X, r.Y)).ToArray());
                 }
 
-                var dummy = GetBitmapBytes(bitmap, fileName);
+                using var dummy = GetBitmapStream(bitmap, fileName);
                 originalSize = dummy.Length;
             }
 
@@ -68,24 +67,25 @@ namespace OpenALPRWrapper
                     {
                         resizedBitmap.SetPropertyItem(bitmap.GetPropertyItem(id));
                     }
-                    return GetBitmapBytes(resizedBitmap, fileName);
+                    return GetBitmapStream(resizedBitmap, fileName);
                 }
             }
 
-            return GetBitmapBytes(bitmap, fileName);
+            return GetBitmapStream(bitmap, fileName);
         }
 
-        private static byte[] GetBitmapBytes(Bitmap bitmap, string fileName)
+        private static Stream GetBitmapStream(Bitmap bitmap, string fileName)
         {
             if (string.IsNullOrWhiteSpace(fileName))
             {
                 throw new ArgumentNullException(nameof(fileName));
             }
 
-            using var output = new MemoryStream();
+            var output = new MemoryStream();
             bitmap.Save(output, GetImageFormatFromExtension(Path.GetExtension(fileName)));
+            output.Seek(0, SeekOrigin.Begin);
 
-            return output.ToArray();
+            return output;
         }
 
         private static ImageFormat GetImageFormatFromExtension(string fileExtension)
