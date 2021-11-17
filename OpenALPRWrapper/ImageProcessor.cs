@@ -23,55 +23,64 @@ namespace OpenALPRWrapper
 
         async Task<Stream> IImageProcessor.ProcessImage(Stream input, string fileName, bool hideLicensePlates, long? sizeLimit)
         {
-            using var bitmap = new Bitmap(input);
-            double originalSize = input.Length;
-
-            if (hideLicensePlates)
+            var bitmap = new Bitmap(input);
+            try
             {
-                NormalizeOrientation(bitmap);
-                input.Seek(0, SeekOrigin.Begin);
-                var processingResult = await RunAlpr(input, fileName);
-                foreach (var result in processingResult.Results)
-                {
-                    using var graphics = Graphics.FromImage(bitmap);
-                    var x = result.Coordinates.Min(p => p.X);
-                    var y = result.Coordinates.Max(p => p.Y);
-                    var height = Math.Abs(y - result.Coordinates.Min(p => p.Y));
-                    var width = Math.Abs(result.Coordinates.Max(p => p.X) - x);
-                    using var crop = bitmap.Clone(new Rectangle(x, y, width, height), bitmap.PixelFormat);
-                    using var blurred = Blur(crop, new Rectangle(0, 0, crop.Width, crop.Height), 10);
-                    using var myBrush = new TextureBrush(blurred);
-                    graphics.FillPolygon(myBrush, result.Coordinates.Select(r => new Point(r.X, r.Y)).ToArray());
-                }
+                var bitmapStream = GetBitmapStream(bitmap, fileName);
+                double originalSize = input.Length;
 
-                using var dummy = GetBitmapStream(bitmap, fileName);
-                originalSize = dummy.Length;
-            }
-
-            if (sizeLimit.HasValue && originalSize > sizeLimit.Value)
-            {
-                var scale = Math.Sqrt(sizeLimit.Value / originalSize);
-                if (scale > 0 && scale < 1)
+                if (hideLicensePlates)
                 {
-                    Console.WriteLine("bump");
-                    var scaleWidth = (int)(bitmap.Width * scale);
-                    var scaleHeight = (int)(bitmap.Height * scale);
-                    using var resizedBitmap = new Bitmap(scaleWidth, scaleHeight);
-                    using var graph = Graphics.FromImage(resizedBitmap);
-                    graph.InterpolationMode = InterpolationMode.High;
-                    graph.CompositingQuality = CompositingQuality.HighQuality;
-                    graph.SmoothingMode = SmoothingMode.AntiAlias;
-                    graph.FillRectangle(new SolidBrush(Color.Black), new RectangleF(0, 0, scaleWidth, scaleHeight));
-                    graph.DrawImage(bitmap, 0, 0, scaleWidth, scaleHeight);
-                    foreach (var id in bitmap.PropertyIdList)
+                    NormalizeOrientation(bitmap);
+                    input.Seek(0, SeekOrigin.Begin);
+                    var processingResult = await RunAlpr(input, fileName);
+                    foreach (var result in processingResult.Results)
                     {
-                        resizedBitmap.SetPropertyItem(bitmap.GetPropertyItem(id));
+                        using var graphics = Graphics.FromImage(bitmap);
+                        var x = result.Coordinates.Min(p => p.X);
+                        var y = result.Coordinates.Max(p => p.Y);
+                        var height = Math.Abs(y - result.Coordinates.Min(p => p.Y));
+                        var width = Math.Abs(result.Coordinates.Max(p => p.X) - x);
+                        using var crop = bitmap.Clone(new Rectangle(x, y, width, height), bitmap.PixelFormat);
+                        using var blurred = Blur(crop, new Rectangle(0, 0, crop.Width, crop.Height), 10);
+                        using var myBrush = new TextureBrush(blurred);
+                        graphics.FillPolygon(myBrush, result.Coordinates.Select(r => new Point(r.X, r.Y)).ToArray());
                     }
-                    return GetBitmapStream(resizedBitmap, fileName);
-                }
-            }
 
-            return GetBitmapStream(bitmap, fileName);
+                    bitmapStream = GetBitmapStream(bitmap, fileName);
+                    originalSize = bitmapStream.Length;
+                }
+
+                for (var count = 0; sizeLimit.HasValue && originalSize > sizeLimit.Value && count < 5; count++)
+                {
+                    var scale = Math.Sqrt(sizeLimit.Value / originalSize) * (count == 0 ? 1d : 0.9);
+                    if (scale > 0 && scale < 1)
+                    {
+                        var scaleWidth = (int)(bitmap.Width * scale);
+                        var scaleHeight = (int)(bitmap.Height * scale);
+                        using var resizedBitmap = new Bitmap(scaleWidth, scaleHeight);
+                        using var graph = Graphics.FromImage(resizedBitmap);
+                        graph.InterpolationMode = InterpolationMode.High;
+                        graph.CompositingQuality = CompositingQuality.HighQuality;
+                        graph.SmoothingMode = SmoothingMode.AntiAlias;
+                        graph.FillRectangle(new SolidBrush(Color.Black), new RectangleF(0, 0, scaleWidth, scaleHeight));
+                        graph.DrawImage(bitmap, 0, 0, scaleWidth, scaleHeight);
+                        foreach (var id in bitmap.PropertyIdList)
+                        {
+                            resizedBitmap.SetPropertyItem(bitmap.GetPropertyItem(id));
+                        }
+                        bitmapStream = GetBitmapStream(resizedBitmap, fileName);
+                        originalSize = bitmapStream.Length;
+                        bitmap = new Bitmap(resizedBitmap);
+                    }
+                }
+
+                return bitmapStream;
+            }
+            finally
+            {
+                bitmap.Dispose();
+            }
         }
 
         private static Stream GetBitmapStream(Bitmap bitmap, string fileName)
