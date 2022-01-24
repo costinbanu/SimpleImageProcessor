@@ -55,8 +55,9 @@ namespace SimpleImageProcessor.Api
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "api error");
-                return StatusCode((int)HttpStatusCode.InternalServerError);
+                var id = Guid.NewGuid();
+                _logger.Error(ex, $"API exception id: {id:n}");
+                return StatusCode((int)HttpStatusCode.InternalServerError, $"An API error occurred: '{ex.Message}'. ID: '{id:n}'");
             }
         }
     }
