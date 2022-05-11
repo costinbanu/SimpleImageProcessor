@@ -4,7 +4,6 @@ using OpenALPRWrapper;
 using Serilog;
 using SimpleImageProcessor.Contracts;
 using System;
-using System.IO;
 using System.Net;
 using System.Threading.Tasks;
 
