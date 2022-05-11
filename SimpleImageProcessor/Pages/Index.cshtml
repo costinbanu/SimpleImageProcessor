@@ -59,7 +59,7 @@
 </form>
 <p>&nbsp;</p>
 <div style="width:100%" id="images">
-    @foreach (var processedImage in Model.ProcessedImageIds ?? Enumerable.Empty<(Guid, string, string)>())
+    @foreach (var processedImage in Model.ProcessedImageIds)
     {
         <img src="./File?id=@processedImage.Id" onload="resizeImage(this)" />
         <br />
@@ -70,15 +70,15 @@
     }
 </div>
 <p class="caption">
-    Acest soft este pus la dispoziția publicului ca atare, fără garanții, și poate fi folosit în mod liber și gratuit, fără alte restricții. Echipa Metrou Ușor nu își asumă responsabilitatea pentru posibilele
-    daune cauzate de folosirea acestui soft.
+    Acest soft este pus la dispoziția publicului ca atare, fără garanții, și poate fi folosit în mod liber și gratuit, fără restricții. Nici Asociația Metrou Ușor și nici autorul soft-ului nu își asumă 
+    responsabilitatea pentru posibilele daune cauzate de folosirea acestui soft.
 </p>
 <p class="caption">
-    Numerele de înmatriculare detectate în imagini nu sunt salvate nici pe acest server, nici pe servere terțe. Similar, nici imaginile procesate nu sunt salvate nici pe acest server, nici pe servere terțe,
-    nici înainte, nici în timpul și nici după procesare.
+    Numerele de înmatriculare detectate în imagini nu sunt stocate nici pe acest server, nici pe alte servere. Similar, nici imaginile procesate nu sunt stocate nici pe acest server, nici pe alte servere,
+    după procesare. Imaginile sunt stocate pe acest server pentru o scurtă perioadă, de doar câteva secunde, în timpul procesării.
 </p>
 <p class="caption">
-    Motorul de detecție a numerelor de înmatriculare în imagini este furnizat de <a href="https://www.openalpr.com/">openALPR</a>.
+    Modulul de detecție a numerelor de înmatriculare în imagini este furnizat de <a href="https://www.openalpr.com/">openALPR</a>.
 </p>
 <p class="caption">
     Întreg codul sursă este disponibil la <a href="https://github.com/costinbanu/SimpleImageProcessor">https://github.com/costinbanu/SimpleImageProcessor</a>.

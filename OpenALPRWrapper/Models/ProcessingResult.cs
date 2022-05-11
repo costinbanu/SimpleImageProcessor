@@ -9,7 +9,7 @@ namespace OpenALPRWrapper.Models
         public int Version { get; set; }
 
         [JsonProperty("data_type")]
-        public string DataType { get; set; }
+        public string DataType { get; set; } = string.Empty;
 
         [JsonProperty("epoch_time")]
         public long EpochTime { get; set; }
@@ -24,9 +24,9 @@ namespace OpenALPRWrapper.Models
         public double ProcessingTimeMs { get; set; }
 
         [JsonProperty("regions_of_interest")]
-        public List<object> RegionsOfInterest { get; set; }
+        public List<object> RegionsOfInterest { get; set; } = new List<object> { };
 
         [JsonProperty("results")]
-        public List<Result> Results { get; set; }
+        public List<Result> Results { get; set; } = new List<Result> { };
     }
 }

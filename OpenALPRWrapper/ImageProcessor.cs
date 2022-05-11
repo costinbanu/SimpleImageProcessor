@@ -19,13 +19,14 @@ namespace OpenALPRWrapper
 
     public class ImageProcessor : IImageProcessor
     {
-        private static readonly string _workingDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
+        private static readonly string _workingDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
 
         async Task<Stream> IImageProcessor.ProcessImage(Stream input, string fileName, bool hideLicensePlates, long? sizeLimit)
         {
             var bitmap = new Bitmap(input);
             try
             {
+                var licensePlatesWereHidden = false;
                 var bitmapStream = GetBitmapStream(bitmap, fileName);
                 double originalSize = input.Length;
 
@@ -45,15 +46,28 @@ namespace OpenALPRWrapper
                         using var blurred = Blur(crop, new Rectangle(0, 0, crop.Width, crop.Height), 10);
                         using var myBrush = new TextureBrush(blurred);
                         graphics.FillPolygon(myBrush, result.Coordinates.Select(r => new Point(r.X, r.Y)).ToArray());
+                        licensePlatesWereHidden = true;
                     }
+                }
 
+                if (licensePlatesWereHidden)
+                {
                     bitmapStream = GetBitmapStream(bitmap, fileName);
+                    originalSize = bitmapStream.Length;
+                }
+                else if (!sizeLimit.HasValue || originalSize <= sizeLimit.Value)
+                {
+                    input.Seek(0, SeekOrigin.Begin);
+                    return input;
+                }
+                else
+                {
                     originalSize = bitmapStream.Length;
                 }
 
                 for (var count = 0; sizeLimit.HasValue && originalSize > sizeLimit.Value && count < 5; count++)
                 {
-                    var scale = Math.Sqrt(sizeLimit.Value / originalSize) * (count == 0 ? 1d : 0.9);
+                    var scale = Math.Sqrt(sizeLimit.Value / originalSize) * (count == 0 ? 1d : 0.9 / count);
                     if (scale > 0 && scale < 1)
                     {
                         var scaleWidth = (int)(bitmap.Width * scale);
@@ -67,7 +81,11 @@ namespace OpenALPRWrapper
                         graph.DrawImage(bitmap, 0, 0, scaleWidth, scaleHeight);
                         foreach (var id in bitmap.PropertyIdList)
                         {
-                            resizedBitmap.SetPropertyItem(bitmap.GetPropertyItem(id));
+                            var item = bitmap.GetPropertyItem(id);
+                            if (item is not null)
+                            {
+                                resizedBitmap.SetPropertyItem(item);
+                            }
                         }
                         bitmapStream = GetBitmapStream(resizedBitmap, fileName);
                         originalSize = bitmapStream.Length;
@@ -133,6 +151,11 @@ namespace OpenALPRWrapper
                 };
                 using var process = Process.Start(processStartInfo);
 
+                if (process is null)
+                {
+                    throw new NotSupportedException("No alpr.exe process has started");
+                }
+
                 var outputTask = process.StandardOutput.ReadToEndAsync();
                 var errorTask = process.StandardError.ReadToEndAsync();
 
@@ -146,7 +169,7 @@ namespace OpenALPRWrapper
                     throw new Exception(error);
                 }
 
-                return JsonConvert.DeserializeObject<ProcessingResult>(await outputTask);
+                return JsonConvert.DeserializeObject<ProcessingResult>(await outputTask)!;
             }
             finally
             {
@@ -158,12 +181,9 @@ namespace OpenALPRWrapper
         {
             if (Array.IndexOf(img.PropertyIdList, 274) > -1)
             {
-                var orientation = (int)img.GetPropertyItem(274).Value[0];
+                var orientation = (int?)img.GetPropertyItem(274)?.Value?[0];
                 switch (orientation)
                 {
-                    case 1:
-                        // No rotation required.
-                        break;
                     case 2:
                         img.RotateFlip(RotateFlipType.RotateNoneFlipX);
                         break;
@@ -185,12 +205,15 @@ namespace OpenALPRWrapper
                     case 8:
                         img.RotateFlip(RotateFlipType.Rotate270FlipNone);
                         break;
+                    default:
+                        // Value is either 1 or null - No rotation required.
+                        break;
                 }
                 img.RemovePropertyItem(274);
             }
         }
 
-        private unsafe static Bitmap Blur(Bitmap image, Rectangle rectangle, Int32 blurSize)
+        private unsafe static Bitmap Blur(Bitmap image, Rectangle rectangle, int blurSize)
         {
             var blurred = new Bitmap(image.Width, image.Height);
 
@@ -210,9 +233,9 @@ namespace OpenALPRWrapper
                     int avgR = 0, avgG = 0, avgB = 0;
                     var blurPixelCount = 0;
 
-                    for (var x = xx; (x < xx + blurSize && x < image.Width); x++)
+                    for (var x = xx; x < xx + blurSize && x < image.Width; x++)
                     {
-                        for (var y = yy; (y < yy + blurSize && y < image.Height); y++)
+                        for (var y = yy; y < yy + blurSize && y < image.Height; y++)
                         {
                             var data = scan0 + y * blurredData.Stride + x * bitsPerPixel / 8;
 

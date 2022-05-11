@@ -22,7 +22,7 @@ namespace SimpleImageProcessor.Pages
         private readonly IImageProcessor _imageProcessor;
 
         [BindProperty]
-        public IEnumerable<IFormFile> Files { get; set; }
+        public IEnumerable<IFormFile> Files { get; set; } = Enumerable.Empty<IFormFile>();
 
         [BindProperty]
         public bool? HidePlates { get; set; }
@@ -30,7 +30,7 @@ namespace SimpleImageProcessor.Pages
         [BindProperty]
         public int? SizeLimit { get; set; }
 
-        public IEnumerable<(Guid Id, string OriginalSize, string NewSize)> ProcessedImageIds { get; private set; }
+        public IEnumerable<(Guid Id, string OriginalSize, string NewSize)> ProcessedImageIds { get; private set; } = Enumerable.Empty<(Guid, string, string)>();
 
         public IndexModel(ILogger logger, IAppCache cache, IImageProcessor imageProcessor)
         {
@@ -47,8 +47,9 @@ namespace SimpleImageProcessor.Pages
         public async Task OnPost()
         {
             var hasErrors = false;
+            var count = Files.Count();
 
-            if ((Files?.Count() ?? 0) < 1 || (Files?.Count() ?? 0) > 10)
+            if (count < 1 || count > 10)
             {
                 ModelState.AddModelError(nameof(Files), "Minim 1, maxim 10 imagini!");
                 hasErrors = true;

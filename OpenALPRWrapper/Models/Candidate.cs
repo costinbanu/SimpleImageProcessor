@@ -5,7 +5,7 @@ namespace OpenALPRWrapper.Models
     public class Candidate
     {
         [JsonProperty("plate")]
-        public string Plate { get; set; }
+        public string Plate { get; set; } = string.Empty;
 
         [JsonProperty("confidence")]
         public double Confidence { get; set; }
