@@ -1,6 +1,7 @@
 ﻿using Newtonsoft.Json;
 using OpenALPRWrapper.Models;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
@@ -15,13 +16,29 @@ namespace OpenALPRWrapper
     public interface IImageProcessor
     {
         Task<Stream> ProcessImage(Stream input, string fileName, bool hideLicensePlates, long? sizeLimit);
+        bool CanProcessFile(string fileName);
+        IEnumerable<string> AllowedFormats { get; }
     }
 
     public class ImageProcessor : IImageProcessor
     {
-        private static readonly string _workingDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
+        static readonly string _workingDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
+        static readonly Dictionary<string, ImageFormat> _imageFormats = new(StringComparer.InvariantCultureIgnoreCase)
+        {
+            [".bmp"] = ImageFormat.Bmp,
+            [".gif"] = ImageFormat.Gif,
+            [".ico"] = ImageFormat.Icon,
+            [".jpg"] = ImageFormat.Jpeg,
+            [".jpeg"] = ImageFormat.Jpeg,
+            [".png"] = ImageFormat.Png,
+        };
 
-        async Task<Stream> IImageProcessor.ProcessImage(Stream input, string fileName, bool hideLicensePlates, long? sizeLimit)
+        public bool CanProcessFile(string fileName)
+            => _imageFormats.ContainsKey(Path.GetExtension(fileName));
+
+        public IEnumerable<string> AllowedFormats => _imageFormats.Keys;
+
+        public async Task<Stream> ProcessImage(Stream input, string fileName, bool hideLicensePlates, long? sizeLimit)
         {
             var bitmap = new Bitmap(input);
             try
@@ -30,7 +47,7 @@ namespace OpenALPRWrapper
                 var bitmapStream = GetBitmapStream(bitmap, fileName);
                 double originalSize = input.Length;
 
-                if (hideLicensePlates)
+                if (hideLicensePlates && CanProcessFile(fileName))
                 {
                     NormalizeOrientation(bitmap);
                     input.Seek(0, SeekOrigin.Begin);
@@ -101,7 +118,7 @@ namespace OpenALPRWrapper
             }
         }
 
-        private static Stream GetBitmapStream(Bitmap bitmap, string fileName)
+        static Stream GetBitmapStream(Bitmap bitmap, string fileName)
         {
             if (string.IsNullOrWhiteSpace(fileName))
             {
@@ -109,26 +126,13 @@ namespace OpenALPRWrapper
             }
 
             var output = new MemoryStream();
-            bitmap.Save(output, GetImageFormatFromExtension(Path.GetExtension(fileName)));
+            bitmap.Save(output, GetImageFormatFromFileName(fileName));
             output.Seek(0, SeekOrigin.Begin);
 
             return output;
         }
 
-        private static ImageFormat GetImageFormatFromExtension(string fileExtension)
-            => fileExtension.ToLowerInvariant() switch
-            {
-                ".bmp" => ImageFormat.Bmp,
-                ".gif" => ImageFormat.Gif,
-                ".ico" => ImageFormat.Icon,
-                ".jpg" or ".jpeg" => ImageFormat.Jpeg,
-                ".png" => ImageFormat.Png,
-                ".tif" or ".tiff" => ImageFormat.Tiff,
-                ".wmf" => ImageFormat.Wmf,
-                _ => throw new Exception($"Unknown extension '{fileExtension}'"),
-            };
-
-        private static async Task<ProcessingResult> RunAlpr(Stream file, string fileName)
+        static async Task<ProcessingResult> RunAlpr(Stream file, string fileName)
         {
             var filePath = Path.Combine(_workingDirectory, $"{Guid.NewGuid():n}{Path.GetExtension(fileName)}");
             var fileInfo = new FileInfo(filePath);
@@ -169,7 +173,7 @@ namespace OpenALPRWrapper
                     throw new Exception(error);
                 }
 
-                return JsonConvert.DeserializeObject<ProcessingResult>(await outputTask)!;
+                return JsonConvert.DeserializeObject<ProcessingResult>(await outputTask) ?? new();
             }
             finally
             {
@@ -177,7 +181,7 @@ namespace OpenALPRWrapper
             }
         }
 
-        private static void NormalizeOrientation(Bitmap img)
+        static void NormalizeOrientation(Bitmap img)
         {
             if (Array.IndexOf(img.PropertyIdList, 274) > -1)
             {
@@ -213,7 +217,7 @@ namespace OpenALPRWrapper
             }
         }
 
-        private unsafe static Bitmap Blur(Bitmap image, Rectangle rectangle, int blurSize)
+        unsafe static Bitmap Blur(Bitmap image, Rectangle rectangle, int blurSize)
         {
             var blurred = new Bitmap(image.Width, image.Height);
 
@@ -268,5 +272,10 @@ namespace OpenALPRWrapper
             blurred.UnlockBits(blurredData);
             return blurred;
         }
+
+        static ImageFormat GetImageFormatFromFileName(string fileName)
+            => _imageFormats.TryGetValue(Path.GetExtension(fileName), out var format)
+            ? format
+            : throw new ArgumentOutOfRangeException(nameof(fileName), fileName, "Unknown extension");
     }
 }

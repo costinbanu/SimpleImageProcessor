@@ -55,10 +55,10 @@ namespace SimpleImageProcessor.Pages
                 hasErrors = true;
             }
 
-            var badFiles = Files.Where(f => !f.ContentType.StartsWith("image"));
+            var badFiles = Files.Where(f => !_imageProcessor.CanProcessFile(f.FileName));
             if (badFiles.Any())
             {
-                ModelState.AddModelError(nameof(Files), $"Următoarele fișiere nu sunt valide: {string.Join(',', badFiles.Select(f => f.FileName))} - toate fișierele trebuie să fie imagini.");
+                ModelState.AddModelError(nameof(Files), $"Următoarele fișiere nu pot fi procesate: {string.Join(", ", badFiles.Select(f => f.FileName))}. Numai următoarele formate sunt acceptate: {string.Join(", ", _imageProcessor.AllowedFormats)}");
                 hasErrors = true;
             }
 
@@ -88,7 +88,7 @@ namespace SimpleImageProcessor.Pages
                     var imageId = Guid.NewGuid();
                     using var ms = new MemoryStream();
                     await result.CopyToAsync(ms);
-                    var img = new ProcessingImage
+                    var img = new ProcessedImage
                     {
                         Contents = ms.GetBuffer(),
                         FileName = file.FileName,

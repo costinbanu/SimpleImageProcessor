@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace OpenALPRWrapper.Models
 {
-    public class Result
+    public class PlateRecognitionResult
     {
         [JsonProperty("plate")]
         public string Plate { get; set; } = string.Empty;

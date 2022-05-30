@@ -1,6 +1,6 @@
 ﻿namespace SimpleImageProcessor.Contracts
 {
-    public class ProcessingImage
+    public class ProcessedImage
     {
         public byte[] Contents { get; set; } = new byte[0];
 
