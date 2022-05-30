@@ -18,7 +18,7 @@ namespace SimpleImageProcessor.Pages
 
         public IActionResult OnGet(Guid id)
         {
-            var file = _cache.Get<ProcessingImage>(id.ToString());
+            var file = _cache.Get<ProcessedImage>(id.ToString());
             if (file is null)
             {
                 return NotFound();

@@ -27,6 +27,6 @@ namespace OpenALPRWrapper.Models
         public List<object> RegionsOfInterest { get; set; } = new List<object> { };
 
         [JsonProperty("results")]
-        public List<Result> Results { get; set; } = new List<Result> { };
+        public List<PlateRecognitionResult> Results { get; set; } = new List<PlateRecognitionResult> { };
     }
 }
