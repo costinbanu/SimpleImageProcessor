@@ -1,23 +1,9 @@
 ﻿@page
+@using Domain
 @model IndexModel
 @{
     ViewData["Title"] = "Home page";
 }
-<script>
-    var maxWidth, maxHeight;
-
-    function resizeImage(img) {
-        maxWidth = maxWidth || $('#images').width() - 20;
-        maxHeight = maxHeight || $(window).innerHeight() - $('#topBanner').outerHeight() - 40;
-        var originalWidth = img.naturalWidth,
-            originalHeight = img.naturalHeight,
-            ratio = Math.min(maxHeight / originalHeight, maxWidth / originalWidth);
-        if (ratio < 1) {
-            $(img).css({ 'width': Math.round(originalWidth * ratio) + 'px', 'height': Math.round(originalHeight * ratio) + 'px' });
-
-        }
-    }
-</script>
 
 <h2>Procesor imagini</h2>
 <br />
@@ -33,28 +19,42 @@
 </p>
 <p>&nbsp;</p>
 <form method="post" id="uploadForm" enctype="multipart/form-data">
-    <input asp-for="Files" multiple />
-    <div class="caption">Minim 1, maxim 10 fișiere.</div>
-    <div id="fileUploadStatus"></div>
-    <span style="color:red" asp-validation-for="Files"></span>
-    <p></p>
-    <select name="hidePlates">
-        <option selected disabled>Alege tipul procesării...</option>
-        <option value="true">Redimensionează și ascunde numerele de înmatriculare</option>
-        <option value="false">Doar redimensionează</option>
-    </select> <br />
-    <span style="color:red" asp-validation-for="HidePlates"></span>
-    <p></p>
-    <select name="sizeLimit">
-        <option selected disabled>Alege dimensiunea minima...</option>
+    <div class="onePerLine">
+        <input asp-for="Files" multiple class="width300" />
+        <div class="caption">Minim 1, maxim 10 fișiere.</div>
+        <div id="fileUploadStatus"></div>
+        <span style="color:red" asp-validation-for="Files"></span>
+    </div>
+    <label class="onePerLine">
+        <input asp-for="HidePlates" type="checkbox" />
+        Ascunde numerele de înmatriculare
+    </label>
+    <div class="onePerLine">
+        <label>
+            @Html.RadioButtonFor(m => m.ResizeMode, ResizeMode.None, new { onchange = $"toggleSizeInput(this, '{ResizeMode.InPixels}', '{ResizeMode.InMB}')" })
+            Nu redimensiona imaginile
+        </label>
+        <br />
+        <label>
+            @Html.RadioButtonFor(m => m.ResizeMode, ResizeMode.InMB, new { onchange = $"toggleSizeInput(this, '{ResizeMode.InPixels}', '{ResizeMode.InMB}')" })
+            Redimensioneazå imaginile folosind dimensiunea pe disc (în MB)
+        </label>
+        <br />
+        <label>
+            @Html.RadioButtonFor(m => m.ResizeMode, ResizeMode.InPixels, new { onchange = $"toggleSizeInput(this, '{ResizeMode.InPixels}', '{ResizeMode.InMB}')" })
+            Redimensionează imaginile folosind rezoluția (în pixeli)
+        </label>
+    </div>
+    <select asp-for="SizeLimitInBytes" class="width300 onePerLine" id="sizeInMB" style="display:@(Model.ResizeMode == ResizeMode.InMB ? "unset" : "none")">
+        <option selected disabled>Alege dimensiunea minimă...</option>
         <option value="2">2MB</option>
         <option value="3">3MB</option>
         <option value="4">4MB</option>
         <option value="5">5MB</option>
-    </select> <br />
-    <span style="color:red" asp-validation-for="SizeLimit"></span>
-    <p></p>
-    <input type="submit" value="Trimite" />
+    </select>
+    <input asp-for="SizeLimitInPixels" type="text" placeholder="Dimensiunea minimă în pixeli pentru latura lungă" class="width300 onePerLine" id="sizeInPixels" style="display:@(Model.ResizeMode == ResizeMode.InPixels ? "unset" : "none")" />
+    <span style="color:red" asp-validation-for="ResizeMode" class="onePerLine"></span>
+    <input type="submit" value="Trimite" class="onePerLine" />
     @Html.AntiForgeryToken()
 </form>
 <p>&nbsp;</p>
@@ -64,7 +64,10 @@
         <img src="./File?id=@processedImage.Id" onload="resizeImage(this)" />
         <br />
         <span style="font-size:0.8em">
-            Dimensiunea veche: @processedImage.OriginalSize; dimensiunea nouă: @processedImage.NewSize
+            dimensiunea veche: @processedImage.OldSize;
+            dimensiunea nouă: @processedImage.NewSize;
+            rezoluția veche: @processedImage.OldResolution.Width x @processedImage.OldResolution.Height;
+            rezoluția nouă: @processedImage.NewResolution.Width x @processedImage.NewResolution.Height;
         </span>
         <p>&nbsp;</p>
     }

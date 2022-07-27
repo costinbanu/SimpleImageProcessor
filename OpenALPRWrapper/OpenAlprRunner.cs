@@ -1,10 +1,9 @@
-﻿using Newtonsoft.Json;
+﻿using Domain;
+using Newtonsoft.Json;
 using OpenALPRWrapper.Models;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
 using System.Drawing;
-using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Linq;
@@ -13,41 +12,16 @@ using System.Threading.Tasks;
 
 namespace OpenALPRWrapper
 {
-    public interface IImageProcessor
-    {
-        Task<Stream> ProcessImage(Stream input, string fileName, bool hideLicensePlates, long? sizeLimit);
-        bool CanProcessFile(string fileName);
-        IEnumerable<string> AllowedFormats { get; }
-    }
-
-    public class ImageProcessor : IImageProcessor
+    public class OpenAlprRunner : IOpenAlprRunner
     {
         static readonly string _workingDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
-        static readonly Dictionary<string, ImageFormat> _imageFormats = new(StringComparer.InvariantCultureIgnoreCase)
-        {
-            [".bmp"] = ImageFormat.Bmp,
-            [".gif"] = ImageFormat.Gif,
-            [".ico"] = ImageFormat.Icon,
-            [".jpg"] = ImageFormat.Jpeg,
-            [".jpeg"] = ImageFormat.Jpeg,
-            [".png"] = ImageFormat.Png,
-        };
 
-        public bool CanProcessFile(string fileName)
-            => _imageFormats.ContainsKey(Path.GetExtension(fileName));
-
-        public IEnumerable<string> AllowedFormats => _imageFormats.Keys;
-
-        public async Task<Stream> ProcessImage(Stream input, string fileName, bool hideLicensePlates, long? sizeLimit)
+        public async Task<Stream> ProcessImage(Stream input, string fileName)
         {
             var bitmap = new Bitmap(input);
             try
             {
-                var licensePlatesWereHidden = false;
-                var bitmapStream = GetBitmapStream(bitmap, fileName);
-                double originalSize = input.Length;
-
-                if (hideLicensePlates && CanProcessFile(fileName))
+                if (ImageUtilities.CanProcessFile(fileName))
                 {
                     NormalizeOrientation(bitmap);
                     input.Seek(0, SeekOrigin.Begin);
@@ -63,73 +37,15 @@ namespace OpenALPRWrapper
                         using var blurred = Blur(crop, new Rectangle(0, 0, crop.Width, crop.Height), 10);
                         using var myBrush = new TextureBrush(blurred);
                         graphics.FillPolygon(myBrush, result.Coordinates.Select(r => new Point(r.X, r.Y)).ToArray());
-                        licensePlatesWereHidden = true;
                     }
                 }
 
-                if (licensePlatesWereHidden)
-                {
-                    bitmapStream = GetBitmapStream(bitmap, fileName);
-                    originalSize = bitmapStream.Length;
-                }
-                else if (!sizeLimit.HasValue || originalSize <= sizeLimit.Value)
-                {
-                    input.Seek(0, SeekOrigin.Begin);
-                    return input;
-                }
-                else
-                {
-                    originalSize = bitmapStream.Length;
-                }
-
-                for (var count = 0; sizeLimit.HasValue && originalSize > sizeLimit.Value && count < 5; count++)
-                {
-                    var scale = Math.Sqrt(sizeLimit.Value / originalSize) * (count == 0 ? 1d : 0.9 / count);
-                    if (scale > 0 && scale < 1)
-                    {
-                        var scaleWidth = (int)(bitmap.Width * scale);
-                        var scaleHeight = (int)(bitmap.Height * scale);
-                        using var resizedBitmap = new Bitmap(scaleWidth, scaleHeight);
-                        using var graph = Graphics.FromImage(resizedBitmap);
-                        graph.InterpolationMode = InterpolationMode.High;
-                        graph.CompositingQuality = CompositingQuality.HighQuality;
-                        graph.SmoothingMode = SmoothingMode.AntiAlias;
-                        graph.FillRectangle(new SolidBrush(Color.Black), new RectangleF(0, 0, scaleWidth, scaleHeight));
-                        graph.DrawImage(bitmap, 0, 0, scaleWidth, scaleHeight);
-                        foreach (var id in bitmap.PropertyIdList)
-                        {
-                            var item = bitmap.GetPropertyItem(id);
-                            if (item is not null)
-                            {
-                                resizedBitmap.SetPropertyItem(item);
-                            }
-                        }
-                        bitmapStream = GetBitmapStream(resizedBitmap, fileName);
-                        originalSize = bitmapStream.Length;
-                        bitmap = new Bitmap(resizedBitmap);
-                    }
-                }
-
-                return bitmapStream;
+                return ImageUtilities.GetBitmapStream(bitmap, fileName);
             }
             finally
             {
                 bitmap.Dispose();
             }
-        }
-
-        static Stream GetBitmapStream(Bitmap bitmap, string fileName)
-        {
-            if (string.IsNullOrWhiteSpace(fileName))
-            {
-                throw new ArgumentNullException(nameof(fileName));
-            }
-
-            var output = new MemoryStream();
-            bitmap.Save(output, GetImageFormatFromFileName(fileName));
-            output.Seek(0, SeekOrigin.Begin);
-
-            return output;
         }
 
         static async Task<ProcessingResult> RunAlpr(Stream file, string fileName)
@@ -272,10 +188,5 @@ namespace OpenALPRWrapper
             blurred.UnlockBits(blurredData);
             return blurred;
         }
-
-        static ImageFormat GetImageFormatFromFileName(string fileName)
-            => _imageFormats.TryGetValue(Path.GetExtension(fileName), out var format)
-            ? format
-            : throw new ArgumentOutOfRangeException(nameof(fileName), fileName, "Unknown extension");
     }
 }

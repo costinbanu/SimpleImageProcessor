@@ -1,4 +1,4 @@
-﻿namespace SimpleImageProcessor
+﻿namespace Domain
 {
     public static class Constants
     {
