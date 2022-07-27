@@ -1,4 +1,7 @@
-﻿using LazyCache;
+﻿using Domain;
+using Domain.Contracts;
+using ImageEditingServices;
+using LazyCache;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
@@ -7,7 +10,6 @@ using Serilog;
 using SimpleImageProcessor.Contracts;
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -19,24 +21,32 @@ namespace SimpleImageProcessor.Pages
     {
         private readonly ILogger _logger;
         private readonly IAppCache _cache;
-        private readonly IImageProcessor _imageProcessor;
+        private readonly IImageResizer _imageResizer;
+        private readonly IOpenAlprRunner _openAlprRunner;
 
         [BindProperty]
         public IEnumerable<IFormFile> Files { get; set; } = Enumerable.Empty<IFormFile>();
 
         [BindProperty]
-        public bool? HidePlates { get; set; }
+        public bool HidePlates { get; set; } = true;
 
         [BindProperty]
-        public int? SizeLimit { get; set; }
+        public int? SizeLimitInBytes { get; set; }
 
-        public IEnumerable<(Guid Id, string OriginalSize, string NewSize)> ProcessedImageIds { get; private set; } = Enumerable.Empty<(Guid, string, string)>();
+        [BindProperty]
+        public int? SizeLimitInPixels { get; set; }
 
-        public IndexModel(ILogger logger, IAppCache cache, IImageProcessor imageProcessor)
+        [BindProperty]
+        public ResizeMode ResizeMode { get; set; } = ResizeMode.InMB;
+
+        public IEnumerable<ProcessedImageMetadata> ProcessedImageIds { get; private set; } = Enumerable.Empty<ProcessedImageMetadata>();
+
+        public IndexModel(ILogger logger, IAppCache cache, IImageResizer imageResizer, IOpenAlprRunner openAlprRunner)
         {
             _logger = logger;
             _cache = cache;
-            _imageProcessor = imageProcessor;
+            _imageResizer = imageResizer;
+            _openAlprRunner = openAlprRunner;
         }
 
         public void OnGet()
@@ -55,25 +65,25 @@ namespace SimpleImageProcessor.Pages
                 hasErrors = true;
             }
 
-            var badFiles = Files.Where(f => !_imageProcessor.CanProcessFile(f.FileName));
+            var badFiles = Files.Where(f => !ImageUtilities.CanProcessFile(f.FileName));
             if (badFiles.Any())
             {
-                ModelState.AddModelError(nameof(Files), $"Următoarele fișiere nu pot fi procesate: {string.Join(", ", badFiles.Select(f => f.FileName))}. Numai următoarele formate sunt acceptate: {string.Join(", ", _imageProcessor.AllowedFormats)}");
+                ModelState.AddModelError(nameof(Files), $"Următoarele fișiere nu pot fi procesate: {string.Join(", ", badFiles.Select(f => f.FileName))}. Numai următoarele formate sunt acceptate: {string.Join(", ", ImageUtilities.AllowedFormats)}");
                 hasErrors = true;
             }
 
-            if (HidePlates is null)
+            if (ResizeMode != ResizeMode.None && SizeLimitInBytes is null && SizeLimitInPixels is null)
             {
-                ModelState.AddModelError(nameof(HidePlates), "Alege un tip de procesare");
+                ModelState.AddModelError(nameof(ResizeMode), "Alege dimensiunea dorită pentru redimensionare!");
                 hasErrors = true;
             }
 
-            if (SizeLimit is null)
+            if (ResizeMode == ResizeMode.None && !HidePlates)
             {
-                ModelState.AddModelError(nameof(SizeLimit), "Alege dimensiunea");
+                ModelState.AddModelError(nameof(ResizeMode), "Nici o acțiune selectată!");
                 hasErrors = true;
             }
-
+   
             if (hasErrors)
             {
                 return;
@@ -84,10 +94,39 @@ namespace SimpleImageProcessor.Pages
                 ProcessedImageIds = await Task.WhenAll(Files.Select(async file => 
                 {
                     using var input = file.OpenReadStream();
-                    using var result = await _imageProcessor.ProcessImage(input, file.FileName, HidePlates ?? false, (SizeLimit ?? 2) * Constants.OneMB);
+                    Stream? output = null;
+                    Resolution? oldResolution, newResolution;
+                    ResizedImage? resizeResult = null;
+
+                    if (HidePlates == true)
+                    {
+                        output = await _openAlprRunner.ProcessImage(input, file.FileName);
+                    }
+
+                    if (SizeLimitInBytes.HasValue)
+                    {
+                        resizeResult = _imageResizer.ResizeImage(output ?? input, file.FileName, newSizeInBytes: SizeLimitInBytes.Value * Constants.OneMB);
+                    }
+                    else if (SizeLimitInPixels.HasValue)
+                    {
+                        resizeResult = _imageResizer.ResizeImage(output ?? input, file.FileName, longestSideInPixels: SizeLimitInPixels.Value);
+                    }
+
+                    if (resizeResult is not null)
+                    {
+                        output = resizeResult.Content;
+                        oldResolution = resizeResult.OldResolution;
+                        newResolution = resizeResult.NewResolution;
+                    }
+                    else
+                    {
+                        oldResolution = newResolution = _imageResizer.GetImageSize(input);
+                    }
+                    output ??= input;
+
                     var imageId = Guid.NewGuid();
                     using var ms = new MemoryStream();
-                    await result.CopyToAsync(ms);
+                    await output.CopyToAsync(ms);
                     var img = new ProcessedImage
                     {
                         Contents = ms.GetBuffer(),
@@ -95,7 +134,7 @@ namespace SimpleImageProcessor.Pages
                         MimeType = file.ContentType
                     };
                     _cache.Add(imageId.ToString(), img, TimeSpan.FromMinutes(1));
-                    return (imageId, ReadableFileSize(file.Length), ReadableFileSize(result.Length));
+                    return new ProcessedImageMetadata(imageId, file.ContentType, oldResolution, newResolution, input.Length, output.Length);
                 }));
             }
             catch (Exception ex)
@@ -103,19 +142,6 @@ namespace SimpleImageProcessor.Pages
                 _logger.Error(ex, "web pages error");
                 ModelState.AddModelError(nameof(Files), $"A intervenit o eroare, te rugăm să încerci mai târziu.");
             }
-        }
-
-        private string ReadableFileSize(long fileSizeInBytes)
-        {
-            var suf = new[] { "B", "KB", "MB", "GB", "TB", "PB", "EB" };
-            if (fileSizeInBytes == 0)
-            {
-                return "0" + suf[0];
-            }
-            var bytes = Math.Abs(fileSizeInBytes);
-            var place = Convert.ToInt32(Math.Floor(Math.Log(bytes, 1024)));
-            var num = Math.Round(bytes / Math.Pow(1024, place), 2);
-            return $"{(Math.Sign(fileSizeInBytes) * num).ToString("##.##", CultureInfo.InvariantCulture)} {suf[place]}";
         }
     }
 }

@@ -1,33 +1,29 @@
-﻿using System;
+﻿using Domain.Contracts;
+using System;
 using System.Globalization;
 
 namespace SimpleImageProcessor.Contracts
 {
     public class ProcessedImageMetadata
     {
-        public ProcessedImageMetadata(Guid id, string mimeType, int width, int height, long originalFileSize, long newFileSize)
+        public ProcessedImageMetadata(Guid id, string mimeType, Resolution oldResolution, Resolution newResolution, long oldFileSize, long newFileSize)
         {
             Id = id;
             MimeType = mimeType;
-            Width = width;
-            Height = height;
-            OriginalSize = ReadableFileSize(originalFileSize);
+            OldResolution = oldResolution;
+            NewResolution = newResolution;
+            OldSize = ReadableFileSize(oldFileSize);
             NewSize = ReadableFileSize(newFileSize);
         }
 
         public Guid Id { get; }
-
-        public string OriginalSize { get; }
-
+        public string OldSize { get; }
         public string NewSize { get; }
-
         public string MimeType { get; }
+        public Resolution OldResolution { get; }
+        public Resolution NewResolution { get; }
 
-        public int Width { get; }
-
-        public int Height { get; }
-
-        private string ReadableFileSize(long fileSizeInBytes)
+        static string ReadableFileSize(long fileSizeInBytes)
         {
             var suf = new[] { "B", "KB", "MB", "GB", "TB", "PB", "EB" };
             if (fileSizeInBytes == 0)

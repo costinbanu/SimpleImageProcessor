@@ -1,9 +1,13 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using Domain;
+using Domain.Contracts;
+using ImageEditingServices;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
 using OpenALPRWrapper;
 using Serilog;
 using SimpleImageProcessor.Contracts;
 using System;
+using System.IO;
 using System.Net;
 using System.Threading.Tasks;
 
@@ -12,13 +16,15 @@ namespace SimpleImageProcessor.Api
     [Route("api")]
     public class ApiController : Controller
     {
-        private readonly IImageProcessor _imageProcessor;
+        private readonly IImageResizer _imageResizer;
+        private readonly IOpenAlprRunner _openAlprRunner;
         private readonly ILogger _logger;
         private readonly IConfiguration _config;
 
-        public ApiController(IImageProcessor imageProcessor, ILogger logger, IConfiguration config)
+        public ApiController(IImageResizer imageResizer, IOpenAlprRunner openAlprRunner, ILogger logger, IConfiguration config)
         {
-            _imageProcessor = imageProcessor;
+            _imageResizer = imageResizer;
+            _openAlprRunner = openAlprRunner;
             _logger = logger;
             _config = config;
         }
@@ -34,29 +40,62 @@ namespace SimpleImageProcessor.Api
 
             if (request is null)
             {
-                return BadRequest();
+                return BadRequest("Request body is missing.");
             }
 
             if (request.SizeLimit is not null && request.SizeLimit < 0)
             {
-                return BadRequest();
+                return BadRequest($"Invalid value for {nameof(request.SizeLimit)}.");
             }
 
             if (request.SizeLimit is not null && request.SizeLimit < Constants.OneMB)
             {
                 request.SizeLimit = Constants.OneMB;
+                _logger.Warning($"Value for {nameof(request.SizeLimit)} normalized to 1MB because it was too low.");
+            }
+
+            if (request.ResolutionLimit is not null && request.ResolutionLimit < 0)
+            {
+                return BadRequest($"Invalid value for {nameof(request.ResolutionLimit)}");
+            }
+
+            if (request.SizeLimit is not null && request.ResolutionLimit is not null)
+            {
+                _logger.Warning($"Received request with both {nameof(request.SizeLimit)} and {nameof(request.ResolutionLimit)} set. {nameof(request.SizeLimit)} wins.");
             }
 
             try
             {
-                var result = await _imageProcessor.ProcessImage(request.File.OpenReadStream(), request.File.FileName, request.HideLicensePlates, request.SizeLimit);
-                return File(result, request.File.ContentType, request.File.FileName);
+                Stream? output = null;
+                var input = request.File.OpenReadStream();
+                ResizedImage? resizeResult = null;
+
+                if (request.HideLicensePlates)
+                {
+                    output = await _openAlprRunner.ProcessImage(input, request.File.FileName);
+                }
+
+                if (request.SizeLimit is not null)
+                {
+                    resizeResult = _imageResizer.ResizeImage(output ?? input, request.File.FileName, newSizeInBytes: request.SizeLimit.Value);
+                }
+                else if (request.ResolutionLimit is not null)
+                {
+                    resizeResult = _imageResizer.ResizeImage(output ?? input, request.File.FileName, longestSideInPixels: request.ResolutionLimit.Value);
+                }
+
+                if (resizeResult is not null)
+                {
+                    output = resizeResult.Content;
+                }
+
+                return File(output ?? input, request.File.ContentType, request.File.FileName);
             }
             catch (Exception ex)
             {
                 var id = Guid.NewGuid();
                 _logger.Error(ex, $"API exception id: {id:n}");
-                return StatusCode((int)HttpStatusCode.InternalServerError, $"An API error occurred: '{ex.Message}'. ID: '{id:n}'");
+                return StatusCode((int)HttpStatusCode.InternalServerError, $"An API error occurred. ID: '{id:n}'");
             }
         }
     }

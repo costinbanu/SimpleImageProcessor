@@ -1,4 +1,25 @@
-﻿// Please see documentation at https://docs.microsoft.com/aspnet/core/client-side/bundling-and-minification
-// for details on configuring this project to bundle and minify static web assets.
+﻿var maxWidth, maxHeight;
 
-// Write your Javascript code.
+function resizeImage(img) {
+    maxWidth = maxWidth || $('#images').width() - 20;
+    maxHeight = maxHeight || $(window).innerHeight() - $('#topBanner').outerHeight() - 40;
+    var originalWidth = img.naturalWidth,
+        originalHeight = img.naturalHeight,
+        ratio = Math.min(maxHeight / originalHeight, maxWidth / originalWidth);
+    if (ratio < 1) {
+        $(img).css({ 'width': Math.round(originalWidth * ratio) + 'px', 'height': Math.round(originalHeight * ratio) + 'px' });
+
+    }
+}
+function toggleSizeInput(input, inPixels, inMB) {
+    if ($(input).val() === inPixels) {
+        $('#sizeInPixels').show();
+        $('#sizeInMB').hide();
+    } else if ($(input).val() === inMB) {
+        $('#sizeInPixels').hide();
+        $('#sizeInMB').show();
+    } else {
+        $('#sizeInPixels').hide();
+        $('#sizeInMB').hide();
+    }
+}

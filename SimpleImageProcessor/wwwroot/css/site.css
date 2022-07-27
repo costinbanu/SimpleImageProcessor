@@ -58,3 +58,32 @@ body {
     font-size: 0.8em;
     font-style: italic;
 }
+
+.width300 {
+    min-width: 400px;
+    max-width: 400px;
+}
+
+.onePerLine {
+    display: block;
+    clear: both;
+    margin-bottom: 15px;
+}
+
+label {
+    font-weight: normal;
+}
+
+.container {
+    padding: 15px;
+    margin-right: auto;
+    margin-left: auto;
+}
+
+.navbar {
+    background: none !important;
+    border: none !important;
+    padding-bottom: 0 !important;
+    margin-bottom: 0 !important;
+    position: unset !important;
+}

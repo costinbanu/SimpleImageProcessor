@@ -1,3 +1,4 @@
+using ImageEditingServices;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http.Features;
@@ -32,7 +33,8 @@ namespace SimpleImageProcessor
             services.AddRazorPages().AddSessionStateTempDataProvider();
             services.AddControllers();
             services.AddLazyCache();
-            services.AddSingleton<IImageProcessor, ImageProcessor>();
+            services.AddSingleton<IOpenAlprRunner, OpenAlprRunner>();
+            services.AddSingleton<IImageResizer, ImageResizer>();
         }
 
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
