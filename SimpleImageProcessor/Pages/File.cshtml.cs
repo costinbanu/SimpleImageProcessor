@@ -1,4 +1,5 @@
 ﻿using LazyCache;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using SimpleImageProcessor.Contracts;
@@ -29,8 +30,8 @@ namespace SimpleImageProcessor.Pages
                 FileName = file.FileName,
                 Inline = true
             };
-            Response.Headers.Add("Content-Disposition", cd.ToString());
-            Response.Headers.Add("X-Content-Type-Options", "nosniff");
+            Response.Headers.Append("Content-Disposition", cd.ToString());
+            Response.Headers.Append("X-Content-Type-Options", "nosniff");
             return File(file.Contents, file.MimeType, file.FileName);
         }
     }

@@ -1,8 +1,9 @@
-﻿using System.IO;
+﻿using System;
+using System.IO;
 
 namespace Domain.Contracts
 {
-    public class ResizedImage
+    public class ResizedImage : IDisposable
     {
         public ResizedImage(Stream content, Resolution oldResolution, Resolution newResolution)
         {
@@ -14,5 +15,11 @@ namespace Domain.Contracts
         public Stream Content { get; }
         public Resolution OldResolution { get; }
         public Resolution NewResolution { get; }
+
+        public void Dispose()
+        {
+            Content?.Dispose();
+            GC.SuppressFinalize(this);
+        }
     }
 }

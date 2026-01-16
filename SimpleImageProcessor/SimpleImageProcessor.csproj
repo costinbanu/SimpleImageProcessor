@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <UserSecretsId>f7cc9266-c3c3-4144-a63b-d50d0c6fc036</UserSecretsId>
@@ -26,15 +26,13 @@
   
   <ItemGroup>
     <PackageReference Include="LazyCache.AspNetCore" Version="2.4.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation" Version="6.0.5" />
-    <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="6.0.4" />
-    <PackageReference Include="Serilog.AspNetCore" Version="5.0.0" />
-    <PackageReference Include="System.Drawing.Common" Version="6.0.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Razor.RuntimeCompilation" Version="9.0.12" />
+    <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="9.0.12" />
+    <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
   </ItemGroup>
   
   <ItemGroup>
     <ProjectReference Include="..\ImageEditingServices\ImageEditingServices.csproj" />
-    <ProjectReference Include="..\OpenALPRWrapper\OpenALPRWrapper.csproj" />
   </ItemGroup>
 
 </Project>

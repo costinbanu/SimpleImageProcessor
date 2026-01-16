@@ -1,9 +1,14 @@
-﻿using Domain;
-using Domain.Contracts;
+﻿using Domain.Contracts;
+
 using System;
-using System.Drawing;
-using System.Drawing.Drawing2D;
+
+using SixLabors.ImageSharp;
+
+using SixLabors.ImageSharp.Processing;
+
 using System.IO;
+
+using System.Threading.Tasks;
 
 namespace ImageEditingServices
 {
@@ -11,89 +16,54 @@ namespace ImageEditingServices
     {
         public Resolution GetImageSize(Stream input)
         {
-            using var bitmap = new Bitmap(input);
-            input.Seek(0, SeekOrigin.Begin);
-            return new Resolution(bitmap.Width, bitmap.Height);
+            using var img = Image.Load(input);
+            return new Resolution(img.Width, img.Height);
         }
 
-        public ResizedImage? ResizeImage(Stream input, string fileName, long newSizeInBytes)
+        public async Task<ResizedImage?> ResizeImageByFileSize(Stream input, string fileName, double newSizeInBytes)
         {
-            var bitmap = new Bitmap(input);
-            int oldWidth = bitmap.Width, oldHeight = bitmap.Height, newWidth = 0, newHeight = 0;
-            try
+            using var oldImage = await Image.LoadAsync(input);
+            var oldResolution = new Resolution(oldImage.Width, oldImage.Height);
+            double originalSize = input.Length;
+            Stream? result = null;
+            for (var count = 0; originalSize > newSizeInBytes && count < 5; count++)
             {
-                double originalSize = input.Length;
-                Stream? result = null;
-                for (var count = 0; originalSize > newSizeInBytes && count < 5; count++)
-                {
-                    var scale = Math.Sqrt(newSizeInBytes / originalSize) * (count == 0 ? 1d : 0.9 / count);
-                    if (scale > 0 && scale < 1)
-                    {
-                        using var resizedBitmap = ResizeImageCore(bitmap, (int)(bitmap.Width * scale), (int)(bitmap.Height * scale));
-                        result = ImageUtilities.GetBitmapStream(resizedBitmap, fileName);
-                        originalSize = result.Length;
-                        bitmap = new Bitmap(resizedBitmap);
-                        newWidth = resizedBitmap.Width;
-                        newHeight = resizedBitmap.Height;
-                    }
-                }
-                input.Seek(0, SeekOrigin.Begin);
-                if (result is null)
-                {
-                    return null;
-                }
-                return new ResizedImage(
-                    content: result, 
-                    oldResolution: new Resolution(oldWidth, oldHeight), 
-                    newResolution: new Resolution(newWidth, newHeight));
-            }
-            finally
-            {
-                bitmap.Dispose();
-            }
-        }
-
-        public ResizedImage? ResizeImage(Stream input, string filename, int longestSideInPixels)
-        {
-            var bitmap = new Bitmap(input);
-            try
-            {
-                var scale = (double)longestSideInPixels / Math.Max(bitmap.Width, bitmap.Height);
-                input.Seek(0, SeekOrigin.Begin);
+                var scale = Math.Sqrt(newSizeInBytes / originalSize) * (count == 0 ? 1d : 0.9 / count);
                 if (scale > 0 && scale < 1)
                 {
-                    using var resizedBitmap = ResizeImageCore(bitmap, (int)(bitmap.Width * scale), (int)(bitmap.Height * scale));
-                    return new ResizedImage(
-                        content: ImageUtilities.GetBitmapStream(resizedBitmap, filename), 
-                        oldResolution: new Resolution(bitmap.Width, bitmap.Height), 
-                        newResolution: new Resolution(resizedBitmap.Width, resizedBitmap.Height));
+                    result = new MemoryStream();
+                    await ResizeImageCore(scale, fileName, oldImage, result);
+                    originalSize = result.Length;
                 }
-                return null;
             }
-            finally
-            {
-                bitmap.Dispose();
-            }
+            using var finalImage = result != null ? await Image.LoadAsync(result) : null;
+            result?.Seek(0, SeekOrigin.Begin);
+            return finalImage != null
+                ? new ResizedImage(result!, oldResolution, new Resolution(finalImage.Width, finalImage.Height))
+                : null;
         }
 
-        static Bitmap ResizeImageCore(Bitmap input, int newWidth, int newHeight)
+        public async Task<ResizedImage?> ResizeImageByResolution(Stream input, string fileName, int longestSideInPixels)
         {
-            var resizedBitmap = new Bitmap(newWidth, newHeight);
-            using var graph = Graphics.FromImage(resizedBitmap);
-            graph.InterpolationMode = InterpolationMode.High;
-            graph.CompositingQuality = CompositingQuality.HighQuality;
-            graph.SmoothingMode = SmoothingMode.AntiAlias;
-            graph.FillRectangle(new SolidBrush(Color.Black), new RectangleF(0, 0, newWidth, newHeight));
-            graph.DrawImage(input, 0, 0, newWidth, newHeight);
-            foreach (var id in input.PropertyIdList)
+            using var inputImage = await Image.LoadAsync(input);
+            var scale = (double)longestSideInPixels / Math.Max(inputImage.Width, inputImage.Height);
+            if (scale > 0 && scale < 1)
             {
-                var item = input.GetPropertyItem(id);
-                if (item is not null)
-                {
-                    resizedBitmap.SetPropertyItem(item);
-                }
+                var oldResolution = new Resolution(inputImage.Width, inputImage.Height);
+                var result = new MemoryStream();
+                await ResizeImageCore(scale, fileName, inputImage, result);
+                using var finalImage = await Image.LoadAsync(result);
+                result.Seek(0, SeekOrigin.Begin);
+                return new ResizedImage(result!, oldResolution, new Resolution(finalImage.Width, finalImage.Height));
             }
-            return resizedBitmap;
+            return null;
+        }
+
+        static async Task ResizeImageCore(double scale, string fileName, Image image, Stream result)
+        {
+            image.Mutate(ctx => ctx.Resize((int)(image.Width * scale), (int)(image.Height * scale)));
+            await image.SaveAsync(result, image.Metadata.DecodedImageFormat ?? throw new InvalidOperationException($"Unknown image format in file '{fileName}'."));
+            result.Seek(0, SeekOrigin.Begin);
         }
     }
 }

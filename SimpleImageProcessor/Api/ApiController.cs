@@ -3,7 +3,7 @@ using Domain.Contracts;
 using ImageEditingServices;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
-using OpenALPRWrapper;
+//using OpenALPRWrapper;
 using Serilog;
 using SimpleImageProcessor.Contracts;
 using System;
@@ -17,14 +17,14 @@ namespace SimpleImageProcessor.Api
     public class ApiController : Controller
     {
         private readonly IImageResizer _imageResizer;
-        private readonly IOpenAlprRunner _openAlprRunner;
+        //private readonly IOpenAlprRunner _openAlprRunner;
         private readonly ILogger _logger;
         private readonly IConfiguration _config;
 
-        public ApiController(IImageResizer imageResizer, IOpenAlprRunner openAlprRunner, ILogger logger, IConfiguration config)
+        public ApiController(IImageResizer imageResizer, /*IOpenAlprRunner openAlprRunner,*/ ILogger logger, IConfiguration config)
         {
             _imageResizer = imageResizer;
-            _openAlprRunner = openAlprRunner;
+            // _openAlprRunner = openAlprRunner;
             _logger = logger;
             _config = config;
         }
@@ -70,18 +70,18 @@ namespace SimpleImageProcessor.Api
                 var input = request.File.OpenReadStream();
                 ResizedImage? resizeResult = null;
 
-                if (request.HideLicensePlates)
-                {
-                    output = await _openAlprRunner.ProcessImage(input, request.File.FileName);
-                }
+                // if (request.HideLicensePlates)
+                // {
+                //     output = await _openAlprRunner.ProcessImage(input, request.File.FileName);
+                // }
 
                 if (request.SizeLimit is not null)
                 {
-                    resizeResult = _imageResizer.ResizeImage(output ?? input, request.File.FileName, newSizeInBytes: request.SizeLimit.Value);
+                    resizeResult = await _imageResizer.ResizeImageByFileSize(output ?? input, request.File.FileName, newSizeInBytes: request.SizeLimit.Value);
                 }
                 else if (request.ResolutionLimit is not null)
                 {
-                    resizeResult = _imageResizer.ResizeImage(output ?? input, request.File.FileName, longestSideInPixels: request.ResolutionLimit.Value);
+                    resizeResult = await _imageResizer.ResizeImageByResolution(output ?? input, request.File.FileName, longestSideInPixels: request.ResolutionLimit.Value);
                 }
 
                 if (resizeResult is not null)

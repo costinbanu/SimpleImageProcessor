@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using OpenALPRWrapper;
+//using OpenALPRWrapper;
 
 namespace SimpleImageProcessor
 {
@@ -33,7 +33,7 @@ namespace SimpleImageProcessor
             services.AddRazorPages().AddSessionStateTempDataProvider();
             services.AddControllers();
             services.AddLazyCache();
-            services.AddSingleton<IOpenAlprRunner, OpenAlprRunner>();
+            //services.AddSingleton<IOpenAlprRunner, OpenAlprRunner>();
             services.AddSingleton<IImageResizer, ImageResizer>();
         }
 
