@@ -5,18 +5,14 @@ using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-//using OpenALPRWrapper;
+using LicensePlateRecognitionService;
 
 namespace SimpleImageProcessor
 {
-    public class Startup
+    public class Startup(IConfiguration configuration, IWebHostEnvironment environment)
     {
-        public Startup(IConfiguration configuration)
-        {
-            Configuration = configuration;
-        }
-
-        public IConfiguration Configuration { get; }
+        public IConfiguration Configuration { get; } = configuration;
+        public IWebHostEnvironment Environment { get; } = environment;
 
         public void ConfigureServices(IServiceCollection services)
         {
@@ -33,8 +29,8 @@ namespace SimpleImageProcessor
             services.AddRazorPages().AddSessionStateTempDataProvider();
             services.AddControllers();
             services.AddLazyCache();
-            //services.AddSingleton<IOpenAlprRunner, OpenAlprRunner>();
-            services.AddSingleton<IImageResizer, ImageResizer>();
+            services.AddImageEditingServices();
+            services.AddLicensePlateRecognitionService(Environment);
         }
 
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)

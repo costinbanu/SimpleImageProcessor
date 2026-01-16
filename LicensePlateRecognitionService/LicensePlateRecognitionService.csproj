@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <PackageReference Include="CSnakes.Runtime" Version="1.2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="./fastanpr/**" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="requirements.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AdditionalFiles Include="lpr.py" SourceItemType="Python">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </AdditionalFiles>
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Domain/Domain.csproj" />
+  </ItemGroup>
+
+</Project>

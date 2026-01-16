@@ -2,10 +2,10 @@
 using Domain.Contracts;
 using ImageEditingServices;
 using LazyCache;
+using LicensePlateRecognitionService;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-//using OpenALPRWrapper;
 using Serilog;
 using SimpleImageProcessor.Contracts;
 using System;
@@ -17,13 +17,8 @@ using System.Threading.Tasks;
 namespace SimpleImageProcessor.Pages
 {
     [ValidateAntiForgeryToken]
-    public class IndexModel : PageModel
+    public class IndexModel(ILogger logger, IAppCache cache, IImageResizer imageResizer, ILPRService lprService) : PageModel
     {
-        private readonly ILogger _logger;
-        private readonly IAppCache _cache;
-        private readonly IImageResizer _imageResizer;
-        //private readonly IOpenAlprRunner _openAlprRunner;
-
         [BindProperty]
         public IEnumerable<IFormFile> Files { get; set; } = Enumerable.Empty<IFormFile>();
 
@@ -40,14 +35,6 @@ namespace SimpleImageProcessor.Pages
         public ResizeMode ResizeMode { get; set; } = ResizeMode.InMB;
 
         public IEnumerable<ProcessedImageMetadata> ProcessedImageIds { get; private set; } = Enumerable.Empty<ProcessedImageMetadata>();
-
-        public IndexModel(ILogger logger, IAppCache cache, IImageResizer imageResizer/*, IOpenAlprRunner openAlprRunner*/)
-        {
-            _logger = logger;
-            _cache = cache;
-            _imageResizer = imageResizer;
-            //_openAlprRunner = openAlprRunner;
-        }
 
         public void OnGet()
         {
@@ -98,18 +85,21 @@ namespace SimpleImageProcessor.Pages
                     Resolution? oldResolution, newResolution;
                     ResizedImage? resizeResult = null;
 
-                    // if (HidePlates == true)
-                    // {
-                    //     output = await _openAlprRunner.ProcessImage(input, file.FileName);
-                    // }
+                    if (HidePlates == true)
+                    {
+                        var result = await lprService.RecognizeLicensePlates(input);
+                        logger.Information("LPR results: {result}", result);
+                        input.Seek(0, SeekOrigin.Begin);
+                        //output = await _openAlprRunner.ProcessImage(input, file.FileName);
+                    }
 
                     if (SizeLimitInBytes.HasValue)
                     {
-                        resizeResult = await _imageResizer.ResizeImageByFileSize(output ?? input, file.FileName, newSizeInBytes: SizeLimitInBytes.Value * Constants.OneMB);
+                        resizeResult = await imageResizer.ResizeImageByFileSize(output ?? input, file.FileName, newSizeInBytes: SizeLimitInBytes.Value * Constants.OneMB);
                     }
                     else if (SizeLimitInPixels.HasValue)
                     {
-                        resizeResult = await _imageResizer.ResizeImageByResolution(output ?? input, file.FileName, longestSideInPixels: SizeLimitInPixels.Value);
+                        resizeResult = await imageResizer.ResizeImageByResolution(output ?? input, file.FileName, longestSideInPixels: SizeLimitInPixels.Value);
                     }
 
                     if (resizeResult is not null)
@@ -120,7 +110,7 @@ namespace SimpleImageProcessor.Pages
                     }
                     else
                     {
-                        oldResolution = newResolution = _imageResizer.GetImageSize(input);
+                        oldResolution = newResolution = imageResizer.GetImageSize(input);
                     }
                     output ??= input;
 
@@ -133,13 +123,13 @@ namespace SimpleImageProcessor.Pages
                         FileName = file.FileName,
                         MimeType = file.ContentType
                     };
-                    _cache.Add(imageId.ToString(), img, TimeSpan.FromMinutes(1));
+                    cache.Add(imageId.ToString(), img, TimeSpan.FromMinutes(1));
                     return new ProcessedImageMetadata(imageId, file.ContentType, oldResolution, newResolution, input.Length, output.Length);
                 }));
             }
             catch (Exception ex)
             {
-                _logger.Error(ex, "web pages error");
+                logger.Error(ex, "web pages error");
                 ModelState.AddModelError(nameof(Files), $"A intervenit o eroare, te rugăm să încerci mai târziu.");
             }
         }

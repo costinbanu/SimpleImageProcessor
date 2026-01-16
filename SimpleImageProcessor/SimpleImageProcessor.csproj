@@ -32,6 +32,7 @@
   </ItemGroup>
   
   <ItemGroup>
+    <ProjectReference Include="../LicensePlateRecognitionService/LicensePlateRecognitionService.csproj" />
     <ProjectReference Include="..\ImageEditingServices\ImageEditingServices.csproj" />
   </ItemGroup>
 

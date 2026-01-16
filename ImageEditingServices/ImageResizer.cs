@@ -12,7 +12,7 @@ using System.Threading.Tasks;
 
 namespace ImageEditingServices
 {
-    public class ImageResizer : IImageResizer
+    class ImageResizer : IImageResizer
     {
         public Resolution GetImageSize(Stream input)
         {
