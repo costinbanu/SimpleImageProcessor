@@ -9,10 +9,9 @@ using LicensePlateRecognitionService;
 
 namespace SimpleImageProcessor
 {
-    public class Startup(IConfiguration configuration, IWebHostEnvironment environment)
+    public class Startup(IConfiguration configuration)
     {
         public IConfiguration Configuration { get; } = configuration;
-        public IWebHostEnvironment Environment { get; } = environment;
 
         public void ConfigureServices(IServiceCollection services)
         {
@@ -30,7 +29,7 @@ namespace SimpleImageProcessor
             services.AddControllers();
             services.AddLazyCache();
             services.AddImageEditingServices();
-            services.AddLicensePlateRecognitionService(Environment);
+            services.AddLicensePlateRecognitionService();
         }
 
         public void Configure(IApplicationBuilder app, IWebHostEnvironment env)

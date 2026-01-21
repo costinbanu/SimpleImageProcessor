@@ -6,7 +6,7 @@ using LicensePlateRecognitionService;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Serilog;
+using Microsoft.Extensions.Logging;
 using SimpleImageProcessor.Contracts;
 using System;
 using System.Collections.Generic;
@@ -17,7 +17,7 @@ using System.Threading.Tasks;
 namespace SimpleImageProcessor.Pages
 {
     [ValidateAntiForgeryToken]
-    public class IndexModel(ILogger logger, IAppCache cache, IImageResizer imageResizer, ILPRService lprService) : PageModel
+    public class IndexModel(ILogger<IndexModel> logger, IAppCache cache, IImageResizer imageResizer, ILPRService lprService) : PageModel
     {
         [BindProperty]
         public IEnumerable<IFormFile> Files { get; set; } = Enumerable.Empty<IFormFile>();
@@ -88,7 +88,7 @@ namespace SimpleImageProcessor.Pages
                     if (HidePlates == true)
                     {
                         var result = await lprService.RecognizeLicensePlates(input);
-                        logger.Information("LPR results: {result}", result);
+                        logger.LogInformation("LPR results: {result}", result);
                         input.Seek(0, SeekOrigin.Begin);
                         //output = await _openAlprRunner.ProcessImage(input, file.FileName);
                     }
@@ -129,7 +129,7 @@ namespace SimpleImageProcessor.Pages
             }
             catch (Exception ex)
             {
-                logger.Error(ex, "web pages error");
+                logger.LogError(ex, "web pages error");
                 ModelState.AddModelError(nameof(Files), $"A intervenit o eroare, te rugăm să încerci mai târziu.");
             }
         }

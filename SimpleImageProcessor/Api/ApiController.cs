@@ -3,8 +3,7 @@ using Domain.Contracts;
 using ImageEditingServices;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Configuration;
-//using OpenALPRWrapper;
-using Serilog;
+using Microsoft.Extensions.Logging;
 using SimpleImageProcessor.Contracts;
 using System;
 using System.IO;
@@ -18,10 +17,10 @@ namespace SimpleImageProcessor.Api
     {
         private readonly IImageResizer _imageResizer;
         //private readonly IOpenAlprRunner _openAlprRunner;
-        private readonly ILogger _logger;
+        private readonly ILogger<ApiController> _logger;
         private readonly IConfiguration _config;
 
-        public ApiController(IImageResizer imageResizer, /*IOpenAlprRunner openAlprRunner,*/ ILogger logger, IConfiguration config)
+        public ApiController(IImageResizer imageResizer, /*IOpenAlprRunner openAlprRunner,*/ ILogger<ApiController> logger, IConfiguration config)
         {
             _imageResizer = imageResizer;
             // _openAlprRunner = openAlprRunner;
@@ -51,7 +50,7 @@ namespace SimpleImageProcessor.Api
             if (request.SizeLimit is not null && request.SizeLimit < Constants.OneMB)
             {
                 request.SizeLimit = Constants.OneMB;
-                _logger.Warning($"Value for {nameof(request.SizeLimit)} normalized to 1MB because it was too low.");
+                _logger.LogWarning($"Value for {nameof(request.SizeLimit)} normalized to 1MB because it was too low.");
             }
 
             if (request.ResolutionLimit is not null && request.ResolutionLimit < 0)
@@ -61,7 +60,7 @@ namespace SimpleImageProcessor.Api
 
             if (request.SizeLimit is not null && request.ResolutionLimit is not null)
             {
-                _logger.Warning($"Received request with both {nameof(request.SizeLimit)} and {nameof(request.ResolutionLimit)} set. {nameof(request.SizeLimit)} wins.");
+                _logger.LogWarning($"Received request with both {nameof(request.SizeLimit)} and {nameof(request.ResolutionLimit)} set. {nameof(request.SizeLimit)} wins.");
             }
 
             try
@@ -94,7 +93,7 @@ namespace SimpleImageProcessor.Api
             catch (Exception ex)
             {
                 var id = Guid.NewGuid();
-                _logger.Error(ex, $"API exception id: {id:n}");
+                _logger.LogError(ex, $"API exception id: {id:n}");
                 return StatusCode((int)HttpStatusCode.InternalServerError, $"An API error occurred. ID: '{id:n}'");
             }
         }
